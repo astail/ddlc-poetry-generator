@@ -1,0 +1,115 @@
+:root {
+  --bg: #fff5f8;
+  --fg: #3a2b33;
+  --accent: #e35d8a;
+  --card: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+h1 {
+  color: var(--accent);
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  margin-top: 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  background: var(--card);
+  padding: 1.25rem;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(227, 93, 138, 0.12);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+select,
+input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #f0c4d4;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+}
+
+button {
+  margin-top: 0.3rem;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.error {
+  color: #b00020;
+  font-weight: 600;
+}
+
+.poem {
+  margin-top: 1.75rem;
+  background: var(--card);
+  padding: 1.5rem;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(227, 93, 138, 0.12);
+}
+
+.poem h2 small {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.poem-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  margin: 0 0 1rem;
+}
+
+.poem-ja {
+  border-top: 1px dashed #f0c4d4;
+  padding-top: 1rem;
+  opacity: 0.92;
+}
+
+.status {
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
