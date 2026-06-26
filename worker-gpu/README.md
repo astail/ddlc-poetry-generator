@@ -1,8 +1,10 @@
-# worker-gpu (Python)
+# worker-gpu
 
-画像生成ジョブのワーカー。Redis から image ジョブを取り出し、ComfyUI の HTTP API を
-呼んで Stable Diffusion で画像を生成、`/data` に保存して `images` を更新する。
+画像生成ジョブのワーカー。Redis の `jobs:image` リストからジョブIDを取り出し、
+`jobs`/`images` の状態を更新する（queued→running→done/failed）。失敗時はエラーを記録。
 
-- GPU は `comfyui` サービスが占有するため、このワーカー自体は GPU を直接持たない。
-- 既定モデルは SD 1.5 アニメ調（GTX 1060 6GB 向け、512px）。
-- モデル重みはリポジトリに含めない（取得手順は M2 の issue）。
+- 実装は共有 `app` パッケージ（`app/worker_gpu.py`）にあり、**api イメージを再利用**して起動します。
+  compose では `worker-gpu` サービスが `build: ./api` + `command: python -m app.worker_gpu`。
+- 実際の Stable Diffusion 生成は `processor` として注入します（#12 で ComfyUI 連携を実装）。
+  既定の processor は未実装例外を投げます。
+- GPU は `comfyui` サービスが占有するため、このワーカー自体は GPU を直接持ちません。
