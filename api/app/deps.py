@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Iterator
 
 from sqlalchemy.orm import Session
@@ -33,3 +35,7 @@ def get_generator() -> PoemGenerator:
 @lru_cache
 def get_queue() -> JobQueue:
     return RedisJobQueue.from_env()
+
+
+def get_data_dir() -> Path:
+    return Path(os.environ.get("DATA_DIR", "/data"))
