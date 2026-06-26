@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -35,6 +36,7 @@ class ImageOut(BaseModel):
     id: int
     status: str
     path: Optional[str]
+    url: Optional[str] = None
     width: int
     height: int
     seed: Optional[int]
@@ -46,7 +48,15 @@ class AudioOut(BaseModel):
     lang: str
     status: str
     path: Optional[str]
+    url: Optional[str] = None
     voice: Optional[str]
+
+
+def _asset_url(kind: str, path: Optional[str]) -> Optional[str]:
+    """Public URL for a stored asset (served by GET /api/assets/{kind}/{name})."""
+    if not path:
+        return None
+    return f"/api/assets/{kind}/{os.path.basename(path)}"
 
 
 class PoemSummary(BaseModel):
@@ -94,6 +104,7 @@ def _detail(poem: Poem) -> PoemDetail:
                 id=i.id,
                 status=i.status,
                 path=i.path,
+                url=_asset_url("images", i.path),
                 width=i.width,
                 height=i.height,
                 seed=i.seed,
@@ -107,6 +118,7 @@ def _detail(poem: Poem) -> PoemDetail:
                 lang=a.lang,
                 status=a.status,
                 path=a.path,
+                url=_asset_url("audio", a.path),
                 voice=a.voice,
             )
             for a in poem.audios
