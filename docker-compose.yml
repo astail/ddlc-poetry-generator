@@ -1,0 +1,91 @@
+# DDLC Poetry Generator — compose skeleton (WIP)
+# Services are scaffolded here; Dockerfiles and app code are filled in per-issue (M0–M3).
+# Requires: Docker Compose v2+, NVIDIA driver + nvidia-container-toolkit on the host.
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:${API_PORT:-8000}
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file: [.env]
+    volumes:
+      - data:/data
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  worker-gpu:
+    # Consumes image jobs and calls ComfyUI's HTTP API (no direct GPU needed here).
+    build: ./worker-gpu
+    env_file: [.env]
+    volumes:
+      - data:/data
+    depends_on:
+      - redis
+      - comfyui
+    restart: unless-stopped
+
+  worker-tts:
+    # Default: Piper on CPU. For XTTS (GPU), uncomment the `deploy` block below
+    # and ensure it does not run concurrently with heavy image generation.
+    build: ./worker-tts
+    env_file: [.env]
+    volumes:
+      - data:/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  comfyui:
+    # Stable Diffusion runtime. Holds the GPU. Mount model weights from the host
+    # (weights are NOT committed to this repo — see DISCLAIMER.md).
+    image: ghcr.io/example/comfyui:latest   # TODO(M2): pin image or build ./comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      - ./models/comfyui:/models   # place SD checkpoints / VAE / loras here
+      - data:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ddlc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-ddlc_poems}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  data:
+  pgdata:
