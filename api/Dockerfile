@@ -11,6 +11,5 @@ COPY scripts ./scripts
 
 RUN pip install --no-cache-dir ".[dev]"
 
-# The FastAPI server is implemented in issue #6. Until then the image is used
-# for unit tests:  docker compose run --rm --no-deps api python -m pytest
-CMD ["sh", "-c", "echo 'API server not implemented yet (see issue #6)'; sleep infinity"]
+# Run DB migrations separately:  docker compose run --rm api alembic upgrade head
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
