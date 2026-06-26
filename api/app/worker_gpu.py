@@ -24,10 +24,6 @@ logger = logging.getLogger(__name__)
 ImageProcessor = Callable[[Image], str]
 
 
-def _not_implemented(image: Image) -> str:
-    raise NotImplementedError("ComfyUI/SD integration is implemented in issue #12")
-
-
 class ImageWorker:
     def __init__(
         self,
@@ -99,13 +95,32 @@ class ImageWorker:
                 time.sleep(1)
 
 
+def _default_processor() -> ImageProcessor:
+    from pathlib import Path
+
+    from .comfyui_client import ComfyUIClient, make_comfyui_processor
+
+    client = ComfyUIClient(
+        os.environ.get("COMFYUI_URL", "http://comfyui:8188"),
+        data_dir=Path(os.environ.get("DATA_DIR", "/data")),
+    )
+    return make_comfyui_processor(
+        client,
+        checkpoint=os.environ.get("SD_CHECKPOINT", "anything-v5.safetensors"),
+        steps=int(os.environ.get("SD_STEPS", "25")),
+        cfg=float(os.environ.get("SD_CFG", "7")),
+        width=int(os.environ.get("SD_WIDTH", "512")),
+        height=int(os.environ.get("SD_HEIGHT", "512")),
+    )
+
+
 def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:
     import redis
 
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
     client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
-    return ImageWorker(session_factory, client, processor or _not_implemented)
+    return ImageWorker(session_factory, client, processor or _default_processor())
 
 
 def main() -> None:
