@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Audio, Image, Job, JobType, Poem
@@ -46,3 +47,21 @@ def persist_poem(
     session.commit()
     session.refresh(poem)
     return poem, [image_job, audio_job]
+
+
+def get_poems(
+    session: Session,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    character: Optional[str] = None,
+) -> list[Poem]:
+    stmt = select(Poem)
+    if character:
+        stmt = stmt.where(Poem.character == character)
+    stmt = stmt.order_by(Poem.id.desc()).limit(limit).offset(offset)
+    return list(session.scalars(stmt))
+
+
+def get_poem(session: Session, poem_id: int) -> Optional[Poem]:
+    return session.get(Poem, poem_id)
