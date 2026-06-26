@@ -3,8 +3,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install dependencies first for better layer caching.
-COPY pyproject.toml ./
+COPY pyproject.toml alembic.ini ./
 COPY app ./app
+COPY alembic ./alembic
 COPY tests ./tests
 COPY scripts ./scripts
 
