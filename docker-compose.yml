@@ -59,7 +59,8 @@ services:
   comfyui:
     # Stable Diffusion runtime. Holds the GPU. Mount model weights from the host
     # (weights are NOT committed to this repo — see DISCLAIMER.md).
-    image: ghcr.io/example/comfyui:latest   # TODO(M2): pin image or build ./comfyui
+    # Fetch a checkpoint first:  ./comfyui/download_models.sh
+    build: ./comfyui
     ports:
       - "8188:8188"
     volumes:
