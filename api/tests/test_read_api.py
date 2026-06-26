@@ -96,3 +96,25 @@ def test_asset_serving(client, tmp_path):
 def test_resolve_under_blocks_traversal(tmp_path):
     assert resolve_under(tmp_path, "a/b.txt") is not None
     assert resolve_under(tmp_path, "../etc/passwd") is None
+
+
+def test_asset_url_helper():
+    from app.main import _asset_url
+
+    assert _asset_url("images", None) is None
+    assert _asset_url("images", "/data/images/abc_x.png") == "/api/assets/images/abc_x.png"
+    assert _asset_url("audio", "/data/audio/5.wav") == "/api/assets/audio/5.wav"
+
+
+def test_detail_exposes_image_url(client):
+    with client.session_local() as s:
+        poem = Poem(character="yuri", title="t", poem_en="e", poem_ja="j", lang="en")
+        poem.images.append(Image(prompt="p", path="/data/images/done.png", status="done"))
+        poem.audios.append(Audio(lang="en"))
+        s.add(poem)
+        s.commit()
+        pid = poem.id
+
+    d = client.get(f"/api/poems/{pid}").json()
+    assert d["images"][0]["url"] == "/api/assets/images/done.png"
+    assert d["audios"][0]["url"] is None  # no path yet
