@@ -1,0 +1,117 @@
+"""Image-generation worker (issue #9).
+
+Consumes image jobs from Redis and drives them through the Job/Image status
+state machine. The actual Stable Diffusion / ComfyUI call is injected as a
+``processor`` (implemented in issue #12); the default raises NotImplementedError.
+
+Shares the ``app`` package (models, db, queue) and runs from the api image:
+    docker compose run --rm worker-gpu   # command: python -m app.worker_gpu
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import Callable, Optional
+
+from .db import create_db_engine, make_session_factory
+from .models import AssetStatus, Image, Job, JobStatus
+from .queue import queue_key
+
+logger = logging.getLogger(__name__)
+
+ImageProcessor = Callable[[Image], str]
+
+
+def _not_implemented(image: Image) -> str:
+    raise NotImplementedError("ComfyUI/SD integration is implemented in issue #12")
+
+
+class ImageWorker:
+    def __init__(
+        self,
+        session_factory,
+        redis_client,
+        processor: ImageProcessor,
+        block_timeout: int = 5,
+    ):
+        self._session_factory = session_factory
+        self._redis = redis_client
+        self._processor = processor
+        self._block_timeout = block_timeout
+
+    def run_once(self) -> bool:
+        """Block for one job; return True if one was consumed, False on timeout."""
+        popped = self._redis.blpop([queue_key("image")], timeout=self._block_timeout)
+        if not popped:
+            return False
+        _key, raw = popped
+        try:
+            job_id = int(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+        except (ValueError, AttributeError):
+            logger.error("invalid job id on queue: %r", raw)
+            return True
+        self.process(job_id)
+        return True
+
+    def process(self, job_id: int) -> None:
+        with self._session_factory() as session:
+            job = session.get(Job, job_id)
+            if job is None:
+                logger.warning("job %s not found", job_id)
+                return
+            if job.status == JobStatus.DONE:
+                logger.info("job %s already done, skipping", job_id)
+                return
+
+            image = session.get(Image, job.ref_id)
+            if image is None:
+                job.status = JobStatus.FAILED
+                job.error = "image not found"
+                session.commit()
+                return
+
+            job.status = JobStatus.RUNNING
+            image.status = AssetStatus.RUNNING
+            session.commit()
+
+            try:
+                path = self._processor(image)
+                image.path = path
+                image.status = AssetStatus.DONE
+                job.status = JobStatus.DONE
+                job.error = None
+            except Exception as exc:  # noqa: BLE001 - record failure, keep looping
+                image.status = AssetStatus.FAILED
+                job.status = JobStatus.FAILED
+                job.error = str(exc)[:500]
+                logger.exception("image job %s failed", job_id)
+            session.commit()
+
+    def run(self) -> None:
+        logger.info("image worker started (queue=%s)", queue_key("image"))
+        while True:
+            try:
+                self.run_once()
+            except Exception:  # noqa: BLE001 - never let the loop die
+                logger.exception("worker loop error")
+                time.sleep(1)
+
+
+def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:
+    import redis
+
+    engine = create_db_engine()
+    session_factory = make_session_factory(engine)
+    client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
+    return ImageWorker(session_factory, client, processor or _not_implemented)
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO)
+    build_worker().run()
+
+
+if __name__ == "__main__":
+    main()

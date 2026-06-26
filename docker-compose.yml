@@ -26,14 +26,16 @@ services:
     restart: unless-stopped
 
   worker-gpu:
-    # Consumes image jobs and calls ComfyUI's HTTP API (no direct GPU needed here).
-    build: ./worker-gpu
+    # Consumes image jobs from Redis and (in #12) calls ComfyUI's HTTP API.
+    # Reuses the api image (shared `app` package); no direct GPU needed here.
+    build: ./api
+    command: ["python", "-m", "app.worker_gpu"]
     env_file: [.env]
     volumes:
       - data:/data
     depends_on:
       - redis
-      - comfyui
+      - db
     restart: unless-stopped
 
   worker-tts:
