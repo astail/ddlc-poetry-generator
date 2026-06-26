@@ -39,14 +39,17 @@ services:
     restart: unless-stopped
 
   worker-tts:
-    # Default: Piper on CPU. For XTTS (GPU), uncomment the `deploy` block below
-    # and ensure it does not run concurrently with heavy image generation.
-    build: ./worker-tts
+    # Default: Piper on CPU. Reuses the api image (shared `app` package).
+    # For XTTS (GPU), uncomment the `deploy` block below and ensure it does not
+    # run concurrently with heavy image generation (#16).
+    build: ./api
+    command: ["python", "-m", "app.worker_tts"]
     env_file: [.env]
     volumes:
       - data:/data
     depends_on:
       - redis
+      - db
     restart: unless-stopped
     # deploy:
     #   resources:
