@@ -86,8 +86,13 @@ services:
     # (weights are NOT committed to this repo — see DISCLAIMER.md).
     # Fetch a checkpoint first:  ./comfyui/download_models.sh
     build: ./comfyui
-    ports:
-      - "8188:8188"
+    # NOT published to the host: ComfyUI has no auth, so exposing :8188 would let
+    # anyone on the LAN run arbitrary workflows / read files / hog the GPU.
+    # worker-gpu reaches it over the compose network as `comfyui:8188`, so no
+    # host port mapping is needed (matches docs/ARCHITECTURE.md "internal only").
+    # For local debugging only, bind to loopback explicitly:
+    #   ports:
+    #     - "127.0.0.1:8188:8188"
     volumes:
       - ./models/comfyui:/models   # place SD checkpoints / VAE / loras here
       - data:/data
