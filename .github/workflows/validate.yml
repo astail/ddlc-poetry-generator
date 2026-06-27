@@ -22,8 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install api (with dev deps)
-        run: pip install "./api[dev]"
+      - name: Install api (pinned runtime + dev deps)
+        run: pip install -r api/requirements-dev.txt && pip install --no-deps ./api
       - name: Ruff lint
         run: cd api && ruff check .
       - name: Ruff format check

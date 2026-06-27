@@ -18,6 +18,14 @@ RUN pip install -r requirements.txt
 # Checkpoints come from the mounted /models (see docker-compose.yml).
 RUN rm -rf models/checkpoints && ln -s /models/checkpoints models/checkpoints
 
+# Run as a non-root user (defence in depth, #55). ComfyUI writes outputs/temp
+# under /opt/ComfyUI, so hand it ownership. GPU access works for non-root via the
+# nvidia container runtime. (This image is large/CUDA-based and not built in CI;
+# the change follows the standard non-root pattern.)
+RUN useradd --create-home --uid 10001 comfy \
+    && chown -R comfy:comfy /opt/ComfyUI
+USER comfy
+
 EXPOSE 8188
 # --lowvram keeps SD1.5 within the GTX 1060's 6GB.
 CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--lowvram"]
