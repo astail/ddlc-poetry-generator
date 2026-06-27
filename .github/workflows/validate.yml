@@ -30,3 +30,56 @@ jobs:
         run: cd api && ruff format --check .
       - name: Unit tests
         run: cd api && python -m pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: cd frontend && npm install --no-audit --no-fund
+      - name: Type check
+        run: cd frontend && npx tsc --noEmit
+      - name: Build
+        run: cd frontend && npm run build
+      - name: Lint
+        run: cd frontend && npm run lint
+
+  images:
+    # Actually build the app images so a broken Dockerfile / failed dependency
+    # resolution is caught (the compose job only validates YAML, never builds).
+    # comfyui is intentionally omitted: its CUDA base is multi-GB and needs a
+    # GPU runner, which the hosted runners don't provide.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build api image
+        run: docker build -t ddlc-api ./api
+      - name: Build frontend image
+        run: docker build -t ddlc-frontend ./frontend
+
+  audit:
+    # Advisory dependency scan: surfaces known vulnerabilities in the logs but
+    # does not fail the build (transitive advisories are often unactionable;
+    # Dependabot from #63 handles the actual version bumps).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm audit (frontend)
+        run: |
+          cd frontend
+          npm install --package-lock-only --no-audit --no-fund
+          npm audit --audit-level=high || true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (api)
+        run: |
+          pip install pip-audit
+          pip install ./api
+          pip-audit || true
