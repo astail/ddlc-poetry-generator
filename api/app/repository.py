@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .models import Audio, Image, Job, JobType, Poem
@@ -65,3 +65,18 @@ def get_poems(
 
 def get_poem(session: Session, poem_id: int) -> Optional[Poem]:
     return session.get(Poem, poem_id)
+
+
+def get_stats(session: Session) -> dict:
+    total = session.scalar(select(func.count()).select_from(Poem)) or 0
+    by_character = dict(
+        session.execute(select(Poem.character, func.count()).group_by(Poem.character)).all()
+    )
+    images = dict(session.execute(select(Image.status, func.count()).group_by(Image.status)).all())
+    audios = dict(session.execute(select(Audio.status, func.count()).group_by(Audio.status)).all())
+    return {
+        "total_poems": total,
+        "by_character": by_character,
+        "images": images,
+        "audios": audios,
+    }

@@ -45,3 +45,8 @@ def get_data_dir() -> Path:
 @lru_cache
 def get_rate_limiter() -> RateLimiter:
     return RateLimiter(int(os.environ.get("RATE_LIMIT_PER_MIN", "20")), 60)
+
+
+def get_api_auth_token() -> str | None:
+    """Optional shared secret; when set, POST /api/generate requires it."""
+    return os.environ.get("API_AUTH_TOKEN") or None

@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from .assets import resolve_under
 from .characters import Character
 from .claude_client import PoemGenerationError, PoemGenerator
 from .deps import (
+    get_api_auth_token,
     get_data_dir,
     get_generator,
     get_queue,
@@ -25,7 +26,7 @@ from .deps import (
 from .models import Poem
 from .queue import JobQueue
 from .ratelimit import RateLimiter
-from .repository import get_poem, get_poems
+from .repository import get_poem, get_poems, get_stats
 from .service import GenerationService
 
 app = FastAPI(title="DDLC Poetry Generator API")
@@ -43,6 +44,14 @@ def enforce_rate_limit(
             detail="rate limit exceeded, please slow down",
             headers={"Retry-After": str(retry_after)},
         )
+
+
+def require_api_key(
+    x_api_key: Optional[str] = Header(default=None),
+    token: Optional[str] = Depends(get_api_auth_token),
+) -> None:
+    if token and x_api_key != token:
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
 
 
 @app.exception_handler(PoemGenerationError)
@@ -165,10 +174,15 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/api/stats")
+def stats(session: Session = Depends(get_session)) -> dict:
+    return get_stats(session)
+
+
 @app.post(
     "/api/generate",
     response_model=PoemDetail,
-    dependencies=[Depends(enforce_rate_limit)],
+    dependencies=[Depends(enforce_rate_limit), Depends(require_api_key)],
 )
 def generate(
     req: GenerateRequest,
