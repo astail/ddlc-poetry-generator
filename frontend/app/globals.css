@@ -1,8 +1,13 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&family=Klee+One:wght@600&display=swap");
+
 :root {
-  --bg: #fff5f8;
-  --fg: #3a2b33;
+  --bg: #fff0f5;
+  --bg2: #ffe6ef;
+  --fg: #4a3540;
   --accent: #e35d8a;
-  --card: #ffffff;
+  --card: #fffafc;
+  /* per-character accent, overridden via [data-char] */
+  --char: var(--accent);
 }
 
 * {
@@ -11,30 +16,243 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: var(--bg);
+  font-family: "Zen Maru Gothic", system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--fg);
+  background: linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 .container {
-  max-width: 720px;
+  max-width: 740px;
   margin: 0 auto;
   padding: 1rem 1.25rem 4rem;
 }
 
+h1 {
+  font-family: "Klee One", "Zen Maru Gothic", serif;
+  color: var(--accent);
+  margin-bottom: 0.25rem;
+  text-shadow: 1px 1px 0 #fff, 2px 2px 0 rgba(227, 93, 138, 0.18);
+}
+
+h2 {
+  font-family: "Klee One", "Zen Maru Gothic", serif;
+}
+
+.subtitle {
+  margin-top: 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* ---- nav ---- */
 .nav {
   display: flex;
   gap: 1.25rem;
   padding: 0.9rem 1.25rem;
-  background: var(--accent);
+  background: linear-gradient(90deg, #e35d8a, #f48fb1);
+  box-shadow: 0 2px 10px rgba(227, 93, 138, 0.25);
 }
 
 .nav a {
   color: #fff;
   text-decoration: none;
   font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
+/* ---- form ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  background: var(--card);
+  padding: 1.4rem;
+  border-radius: 18px;
+  border: 2px solid #ffd3e2;
+  box-shadow: 0 6px 22px rgba(227, 93, 138, 0.14);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+select,
+input {
+  padding: 0.6rem 0.75rem;
+  border: 2px solid #f3c2d5;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: #fff;
+}
+
+select:focus,
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button {
+  margin-top: 0.3rem;
+  padding: 0.7rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.error {
+  color: #b00020;
+  font-weight: 700;
+}
+
+/* ---- poem card (per-character accent) ---- */
+.poem {
+  margin-top: 1.75rem;
+  background: var(--card);
+  padding: 1.5rem;
+  border-radius: 18px;
+  border-top: 6px solid var(--char);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08);
+}
+
+.poem h2 {
+  margin-top: 0;
+  color: var(--char);
+}
+
+.poem h2 small {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+[data-char="sayori"] {
+  --char: #f0788f;
+}
+[data-char="natsuki"] {
+  --char: #f06fa8;
+}
+[data-char="yuri"] {
+  --char: #8e6fb0;
+}
+[data-char="monika"] {
+  --char: #4caf86;
+}
+
+.poem-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 1.04rem;
+  line-height: 1.75;
+  margin: 0 0 1rem;
+}
+
+.poem-ja {
+  border-top: 1px dashed #f0c4d4;
+  padding-top: 1rem;
+  opacity: 0.92;
+}
+
+.status {
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
+
+/* ---- image ---- */
+.image-area {
+  margin: 0.5rem 0 1.25rem;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.poem-image {
+  max-width: 100%;
+  border-radius: 14px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+}
+
+.img-pending,
+.audio-pending {
+  color: var(--char);
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.img-failed {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  color: #b00020;
+  font-weight: 700;
+}
+
+.img-failed button {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* ---- audio ---- */
+.audio-area {
+  margin: 0 0 1rem;
+}
+
+.audio-area audio {
+  width: 100%;
+}
+
+.audio-langs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.audio-langs button {
+  margin: 0;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  background: #f3d3df;
+  color: var(--fg);
+}
+
+.audio-langs button.active {
+  background: var(--char);
+  color: #fff;
+}
+
+.audio-failed {
+  color: #b00020;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* ---- gallery ---- */
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -44,7 +262,7 @@ body {
 
 .filters button {
   margin: 0;
-  padding: 0.3rem 0.8rem;
+  padding: 0.3rem 0.85rem;
   font-size: 0.8rem;
   background: #f3d3df;
   color: var(--fg);
@@ -66,9 +284,15 @@ body {
   text-decoration: none;
   color: inherit;
   background: var(--card);
-  border-radius: 12px;
+  border-radius: 14px;
+  border-bottom: 4px solid var(--char);
   overflow: hidden;
-  box-shadow: 0 4px 14px rgba(227, 93, 138, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: transform 0.1s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
 }
 
 .card img,
@@ -118,170 +342,4 @@ body {
   margin: 0;
   padding: 0.4rem 1rem;
   font-size: 0.85rem;
-}
-
-h1 {
-  color: var(--accent);
-  margin-bottom: 0.25rem;
-}
-
-.subtitle {
-  margin-top: 0;
-  font-size: 0.85rem;
-  opacity: 0.7;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  background: var(--card);
-  padding: 1.25rem;
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(227, 93, 138, 0.12);
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-select,
-input {
-  padding: 0.55rem 0.7rem;
-  border: 1px solid #f0c4d4;
-  border-radius: 8px;
-  font-size: 1rem;
-  background: #fff;
-}
-
-button {
-  margin-top: 0.3rem;
-  padding: 0.7rem 1rem;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-.error {
-  color: #b00020;
-  font-weight: 600;
-}
-
-.poem {
-  margin-top: 1.75rem;
-  background: var(--card);
-  padding: 1.5rem;
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(227, 93, 138, 0.12);
-}
-
-.poem h2 small {
-  font-weight: 400;
-  opacity: 0.6;
-}
-
-.poem-text {
-  white-space: pre-wrap;
-  font-family: inherit;
-  font-size: 1.02rem;
-  line-height: 1.6;
-  margin: 0 0 1rem;
-}
-
-.poem-ja {
-  border-top: 1px dashed #f0c4d4;
-  padding-top: 1rem;
-  opacity: 0.92;
-}
-
-.status {
-  font-size: 0.8rem;
-  opacity: 0.65;
-}
-
-.image-area {
-  margin: 0.5rem 0 1.25rem;
-  min-height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.poem-image {
-  max-width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 4px 18px rgba(227, 93, 138, 0.18);
-}
-
-.img-pending {
-  color: var(--accent);
-  font-weight: 600;
-  opacity: 0.8;
-}
-
-.img-failed {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  color: #b00020;
-  font-weight: 600;
-}
-
-.img-failed button {
-  margin: 0;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.85rem;
-}
-
-.audio-area {
-  margin: 0 0 1rem;
-}
-
-.audio-area audio {
-  width: 100%;
-}
-
-.audio-langs {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
-}
-
-.audio-langs button {
-  margin: 0;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.75rem;
-  background: #f3d3df;
-  color: var(--fg);
-}
-
-.audio-langs button.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.audio-pending {
-  color: var(--accent);
-  font-weight: 600;
-  opacity: 0.8;
-  font-size: 0.9rem;
-}
-
-.audio-failed {
-  color: #b00020;
-  font-weight: 600;
-  font-size: 0.9rem;
 }

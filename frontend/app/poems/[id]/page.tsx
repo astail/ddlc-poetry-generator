@@ -54,7 +54,7 @@ export default function PoemDetailPage() {
 
   return (
     <main className="container">
-      <article className="poem" data-testid="poem">
+      <article className="poem" data-testid="poem" data-char={poem.character}>
         <h2>
           {poem.title} <small>— {poem.character}</small>
         </h2>
