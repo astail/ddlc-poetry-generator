@@ -18,7 +18,7 @@ from typing import Callable, Optional
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Image, Job, JobStatus
 from .queue import queue_key
-from .worker_common import handle_job_failure
+from .worker_common import ack, handle_job_failure, reap_stuck, reliable_pop
 
 logger = logging.getLogger(__name__)
 
@@ -41,40 +41,51 @@ class ImageWorker:
         self._max_retries = max_retries
 
     def run_once(self) -> bool:
-        """Block for one job; return True if one was consumed, False on timeout."""
-        popped = self._redis.blpop([queue_key("image")], timeout=self._block_timeout)
-        if not popped:
+        """Block for one job; return True if one was consumed, False on timeout.
+
+        The id is moved onto the processing list while in flight (reliable_pop)
+        and only acked once handled. A retryable failure re-enqueues *after* the
+        status is committed by ``process`` (and before the ack), so a crash can
+        never drop the job — at worst it is reprocessed (at-least-once).
+        """
+        raw = reliable_pop(self._redis, "image", self._block_timeout)
+        if raw is None:
             return False
-        _key, raw = popped
         try:
             job_id = int(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
         except (ValueError, AttributeError):
             logger.error("invalid job id on queue: %r", raw)
+            ack(self._redis, "image", raw)
             return True
-        self.process(job_id)
+        requeue = self.process(job_id)
+        if requeue:
+            self._redis.rpush(queue_key("image"), job_id)
+        ack(self._redis, "image", raw)
         return True
 
-    def process(self, job_id: int) -> None:
+    def process(self, job_id: int) -> bool:
+        """Run one job to completion. Returns True if it should be re-enqueued."""
         with self._session_factory() as session:
             job = session.get(Job, job_id)
             if job is None:
                 logger.warning("job %s not found", job_id)
-                return
+                return False
             if job.status == JobStatus.DONE:
                 logger.info("job %s already done, skipping", job_id)
-                return
+                return False
 
             image = session.get(Image, job.ref_id)
             if image is None:
                 job.status = JobStatus.FAILED
                 job.error = "image not found"
                 session.commit()
-                return
+                return False
 
             job.status = JobStatus.RUNNING
             image.status = AssetStatus.RUNNING
             session.commit()
 
+            requeue = False
             try:
                 path = self._processor(image)
                 image.path = path
@@ -82,7 +93,7 @@ class ImageWorker:
                 job.status = JobStatus.DONE
                 job.error = None
             except Exception as exc:  # noqa: BLE001 - record failure, keep looping
-                handle_job_failure(
+                requeue = handle_job_failure(
                     self._redis,
                     job,
                     image,
@@ -92,9 +103,11 @@ class ImageWorker:
                 )
                 logger.exception("image job %s failed", job_id)
             session.commit()
+            return requeue
 
     def run(self) -> None:
         logger.info("image worker started (queue=%s)", queue_key("image"))
+        reap_stuck(self._redis, "image")
         while True:
             try:
                 self.run_once()

@@ -25,23 +25,60 @@ def _seed(sf):
 
 
 class FakeRedis:
-    def __init__(self, items):
-        self.items = list(items)
-        self.counters = {}
-        self.pushed = []
+    """Minimal Redis double supporting the reliable-delivery list ops (#58)."""
 
-    def blpop(self, keys, timeout=0):
-        if self.items:
-            return (keys[0].encode(), str(self.items.pop(0)).encode())
-        return None
+    def __init__(self, queue=(), queue_name="jobs:image"):
+        self.lists: dict[str, list[bytes]] = {}
+        if queue:
+            self.lists[queue_name] = [str(i).encode() for i in queue]
+        self.counters: dict[str, int] = {}
+        self.expires: dict[str, int] = {}
+        self.pushed: list[tuple[str, int]] = []
+
+    def _list(self, key):
+        return self.lists.setdefault(key, [])
+
+    def _move(self, src, dst, srcpos, dstpos):
+        s = self._list(src)
+        if not s:
+            return None
+        val = s.pop(0) if srcpos == "LEFT" else s.pop()
+        d = self._list(dst)
+        d.append(val) if dstpos == "RIGHT" else d.insert(0, val)
+        return val
+
+    def blmove(self, src, dst, timeout, srcpos="LEFT", dstpos="RIGHT"):
+        return self._move(src, dst, srcpos, dstpos)
+
+    def lmove(self, src, dst, srcpos="LEFT", dstpos="RIGHT"):
+        return self._move(src, dst, srcpos, dstpos)
+
+    def lrem(self, key, count, value):
+        v = value if isinstance(value, bytes) else str(value).encode()
+        lst = self._list(key)
+        removed = 0
+        i = 0
+        while i < len(lst):
+            if lst[i] == v and (count == 0 or removed < count):
+                lst.pop(i)
+                removed += 1
+            else:
+                i += 1
+        return removed
+
+    def llen(self, key):
+        return len(self._list(key))
 
     def incr(self, key):
         self.counters[key] = self.counters.get(key, 0) + 1
         return self.counters[key]
 
+    def expire(self, key, ttl):
+        self.expires[key] = ttl
+
     def rpush(self, key, value):
         self.pushed.append((key, value))
-        self.items.append(value)
+        self._list(key).append(str(value).encode())
 
 
 def test_process_success_sets_paths_and_status():
@@ -82,22 +119,74 @@ def test_process_failure_dead_letters_without_retries():
 def test_failure_retries_then_dead_letters():
     sf = _factory()
     job_id, image_id = _seed(sf)
-    redis = FakeRedis([])
+    redis = FakeRedis()
 
     def proc(image):
         raise RuntimeError("boom")
 
     worker = ImageWorker(sf, redis, proc, max_retries=1)
 
-    worker.process(job_id)  # 1st failure -> re-enqueued
+    # process now only sets status + returns whether to re-enqueue (the run loop
+    # does the rpush after commit); it must NOT push itself.
+    assert worker.process(job_id) is True  # 1st failure -> wants re-enqueue
     with sf() as s:
         assert s.get(Job, job_id).status == JobStatus.QUEUED
-    assert redis.pushed == [("jobs:image", job_id)]
+    assert redis.pushed == []  # process does not re-enqueue directly
+    assert redis.expires.get(f"retry:image:{job_id}")  # retry counter has a TTL
 
-    worker.process(job_id)  # 2nd failure -> dead-letter
+    assert worker.process(job_id) is False  # 2nd failure -> dead-letter
     with sf() as s:
         assert s.get(Job, job_id).status == JobStatus.FAILED
         assert s.get(Image, image_id).status == AssetStatus.FAILED
+
+
+def test_run_once_requeues_failed_job_after_commit():
+    sf = _factory()
+    job_id, _ = _seed(sf)
+    redis = FakeRedis([job_id])
+
+    def proc(image):
+        raise RuntimeError("boom")
+
+    worker = ImageWorker(sf, redis, proc, max_retries=1)
+    assert worker.run_once() is True
+    # Re-enqueued back onto the queue, and the in-flight processing list is clear.
+    assert redis.pushed == [("jobs:image", job_id)]
+    assert redis.llen("jobs:image:processing") == 0
+    assert redis.llen("jobs:image") == 1
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.QUEUED
+
+
+def test_run_once_acks_processing_list_on_success():
+    sf = _factory()
+    job_id, _ = _seed(sf)
+    redis = FakeRedis([job_id])
+    worker = ImageWorker(sf, redis, lambda i: "/data/x.png")
+    assert worker.run_once() is True
+    # Job consumed and removed from BOTH the queue and the processing list.
+    assert redis.llen("jobs:image") == 0
+    assert redis.llen("jobs:image:processing") == 0
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.DONE
+
+
+def test_reaper_requeues_stuck_processing_jobs():
+    from app.worker_common import reap_stuck
+
+    sf = _factory()
+    job_id, _ = _seed(sf)
+    redis = FakeRedis([job_id])
+    # Simulate a crash: the id is parked on the processing list, never acked.
+    raw = redis.blmove("jobs:image", "jobs:image:processing", 0)
+    assert raw is not None
+    assert redis.llen("jobs:image:processing") == 1
+    assert redis.llen("jobs:image") == 0
+
+    assert reap_stuck(redis, "image") == 1
+    # Recovered back onto the queue so it gets reprocessed (at-least-once).
+    assert redis.llen("jobs:image") == 1
+    assert redis.llen("jobs:image:processing") == 0
 
 
 def test_idempotent_skips_done_jobs():
