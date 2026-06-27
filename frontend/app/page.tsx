@@ -8,6 +8,8 @@ const CHARACTERS = ["sayori", "natsuki", "yuri", "monika"] as const;
 
 type Asset = { id: number; status: string; url: string | null; lang?: string };
 
+type ModelInfo = { name: string; label: string; type: string };
+
 type Poem = {
   id: number;
   character: string;
@@ -27,10 +29,26 @@ export default function Home() {
   const [lang, setLang] = useState("en");
   const [genImage, setGenImage] = useState(true);
   const [genAudio, setGenAudio] = useState(true);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [model, setModel] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
   const [audioLang, setAudioLang] = useState<string | null>(null);
+
+  // Load the selectable image models once (#49).
+  useEffect(() => {
+    fetch(`${API_BASE}/api/models`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setModels(d.models ?? []);
+        setModel(d.default ?? "");
+      })
+      .catch(() => {
+        /* dropdown just stays empty; the API uses its default */
+      });
+  }, []);
 
   async function generate(e?: React.FormEvent) {
     e?.preventDefault();
@@ -48,6 +66,7 @@ export default function Home() {
           lang,
           generate_image: genImage,
           generate_audio: genAudio,
+          model: model || null,
         }),
       });
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -132,6 +151,19 @@ export default function Home() {
             />
             画像を生成
           </label>
+
+          {genImage && models.length > 0 && (
+            <label className="model-select">
+              モデル
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="checkbox">
             <input
               type="checkbox"

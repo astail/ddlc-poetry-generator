@@ -18,6 +18,7 @@ def persist_poem(
     theme: Optional[str] = None,
     lang: str = "en",
     model: Optional[str] = None,
+    image_checkpoint: Optional[str] = None,
     generate_image: bool = True,
     generate_audio: bool = True,
 ) -> tuple[Poem, list[Job]]:
@@ -25,7 +26,8 @@ def persist_poem(
 
     ``generate_image`` / ``generate_audio`` opt each asset in or out: an asset
     (and its Job) is only created when its flag is set, so "image only",
-    "audio only", and "both" all work. Defaults keep both on for backward
+    "audio only", and "both" all work. ``image_checkpoint`` pins which image
+    model the worker should use (#49). Defaults keep both assets on for backward
     compatibility. Returns the persisted Poem and the queued Jobs.
     """
     poem = Poem(
@@ -41,7 +43,11 @@ def persist_poem(
     image = None
     audio = None
     if generate_image:
-        image = Image(prompt=result.image_prompt, negative=result.image_negative)
+        image = Image(
+            prompt=result.image_prompt,
+            negative=result.image_negative,
+            checkpoint=image_checkpoint,
+        )
         poem.images.append(image)
     if generate_audio:
         audio = Audio(lang=lang)

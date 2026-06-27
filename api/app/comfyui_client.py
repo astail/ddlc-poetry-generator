@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 import random
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Mapping, Optional
 
 import httpx
 
+from .image_models import ImageModel
+from .image_models import default_name as default_image_model
+from .image_models import default_type as image_default_type
+from .image_models import resolve as resolve_image_model
 from .models import Image
 
 logger = logging.getLogger(__name__)
@@ -103,8 +108,11 @@ class ComfyUIClient:
         cfg: float = 7,
         width: int = 512,
         height: int = 512,
+        workflow: Optional[dict] = None,
     ) -> str:
-        wf = copy.deepcopy(self._workflow)
+        # `workflow` lets the caller pick a per-request graph (e.g. SDXL vs
+        # SD1.5 for a selected model); falls back to the client's default.
+        wf = copy.deepcopy(workflow if workflow is not None else self._workflow)
         wf["4"]["inputs"]["ckpt_name"] = checkpoint
         wf["6"]["inputs"]["text"] = prompt
         wf["7"]["inputs"]["text"] = negative or DEFAULT_NEGATIVE
@@ -166,29 +174,42 @@ class ComfyUIClient:
 def make_comfyui_processor(
     client: ComfyUIClient,
     *,
-    checkpoint: str,
-    steps: int = 25,
-    cfg: float = 7,
-    width: int = 512,
-    height: int = 512,
+    checkpoint: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
 ) -> Callable[[Image], str]:
-    """Adapt a ComfyUIClient into a worker `processor` (Image -> path)."""
+    """Adapt a ComfyUIClient into a worker `processor` (Image -> path).
+
+    The checkpoint comes from ``image.checkpoint`` (per-request model selection,
+    #49) and falls back to ``checkpoint`` / the configured default. The model's
+    type (sd15/sdxl, from the allow-list) selects the workflow + resolution so a
+    selected SDXL model renders at 1024px with the SDXL sampler.
+    """
+    resolved_env = env if env is not None else os.environ
+    fallback = checkpoint or default_image_model(resolved_env)
 
     def processor(image: Image) -> str:
+        name = image.checkpoint or fallback
+        try:
+            model = resolve_image_model(name, resolved_env)
+        except ValueError:
+            # Shouldn't happen (the API validates against the allow-list), but
+            # don't crash the worker on a stale/unknown name.
+            model = ImageModel(name, image_default_type(resolved_env), name)
+        wf = workflow_for(model.type)
+        sdxl = model.type == "sdxl"
         if image.seed is None:
             image.seed = random.randint(0, 2**32 - 1)  # recorded on commit
-        # Record which checkpoint produced this image (provenance); the column
-        # existed but was never populated, so the model used was untrackable.
-        image.checkpoint = checkpoint
+        image.checkpoint = name  # provenance (#66)
         return client.generate(
+            workflow=wf,
             prompt=image.prompt,
             negative=image.negative,
-            checkpoint=checkpoint,
+            checkpoint=name,
             seed=image.seed,
-            steps=steps,
-            cfg=cfg,
-            width=image.width or width,
-            height=image.height or height,
+            steps=int(resolved_env.get("SD_STEPS", "30" if sdxl else "25")),
+            cfg=float(resolved_env.get("SD_CFG", "7")),
+            width=image.width or int(resolved_env.get("SD_WIDTH", "1024" if sdxl else "512")),
+            height=image.height or int(resolved_env.get("SD_HEIGHT", "1024" if sdxl else "512")),
         )
 
     return processor

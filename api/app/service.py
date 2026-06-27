@@ -26,6 +26,7 @@ class GenerationService:
         lang: str = "en",
         generate_image: bool = True,
         generate_audio: bool = True,
+        image_checkpoint: Optional[str] = None,
     ) -> Poem:
         result = self.generator.generate(character, theme)
         poem, jobs = persist_poem(
@@ -34,6 +35,7 @@ class GenerationService:
             theme=theme,
             lang=lang,
             model=self.generator.config.model,
+            image_checkpoint=image_checkpoint,
             generate_image=generate_image,
             generate_audio=generate_audio,
         )
