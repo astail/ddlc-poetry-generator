@@ -59,7 +59,4 @@ def build_user_prompt(character: Character, theme: Optional[str]) -> str:
     persona = PERSONAS[character]
     if theme:
         return f"Write a poem in {persona.name}'s voice about: {theme.strip()}"
-    return (
-        f"Write a poem in {persona.name}'s voice on a theme that suits the "
-        f"character."
-    )
+    return f"Write a poem in {persona.name}'s voice on a theme that suits the character."

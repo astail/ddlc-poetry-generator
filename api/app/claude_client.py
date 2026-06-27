@@ -77,9 +77,7 @@ class PoemGenerator:
                 max_retries=self.config.max_retries,
             )
 
-    def generate(
-        self, character: Union[Character, str], theme: Optional[str] = None
-    ) -> PoemResult:
+    def generate(self, character: Union[Character, str], theme: Optional[str] = None) -> PoemResult:
         character = Character(character)
         system = build_system_prompt(character)
         user = build_user_prompt(character, theme)
@@ -90,18 +88,14 @@ class PoemGenerator:
 
             if getattr(message, "stop_reason", None) == "refusal":
                 req_id = getattr(message, "_request_id", None)
-                raise PoemGenerationError(
-                    f"model refused the request (request_id={req_id})"
-                )
+                raise PoemGenerationError(f"model refused the request (request_id={req_id})")
 
             text = _extract_text(message)
             try:
                 data = json.loads(_extract_json(text))
                 result = PoemResult.model_validate(data)
                 result.character = character.value  # trust input, not the model
-                logger.info(
-                    "poem generated: character=%s title=%r", character.value, result.title
-                )
+                logger.info("poem generated: character=%s title=%r", character.value, result.title)
                 return result
             except (json.JSONDecodeError, ValidationError) as exc:
                 last_error = exc
@@ -112,11 +106,10 @@ class PoemGenerator:
                     exc,
                 )
                 if attempt < self.config.parse_retries:
-                    self._sleep(min(0.5 * (2 ** attempt), 8.0))
+                    self._sleep(min(0.5 * (2**attempt), 8.0))
 
         raise PoemGenerationError(
-            f"failed to produce a valid poem after "
-            f"{self.config.parse_retries + 1} attempt(s)"
+            f"failed to produce a valid poem after {self.config.parse_retries + 1} attempt(s)"
         ) from last_error
 
     def _call(self, system: str, user: str):

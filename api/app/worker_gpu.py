@@ -83,8 +83,12 @@ class ImageWorker:
                 job.error = None
             except Exception as exc:  # noqa: BLE001 - record failure, keep looping
                 handle_job_failure(
-                    self._redis, job, image, exc,
-                    job_type="image", max_retries=self._max_retries,
+                    self._redis,
+                    job,
+                    image,
+                    exc,
+                    job_type="image",
+                    max_retries=self._max_retries,
                 )
                 logger.exception("image job %s failed", job_id)
             session.commit()

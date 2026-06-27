@@ -73,12 +73,8 @@ def test_accepts_code_fenced_json():
 
 def test_retries_on_invalid_then_succeeds():
     sleeps = []
-    client = FakeClient(
-        [text_message("not json at all"), text_message(SAMPLE_POEM)]
-    )
-    gen = PoemGenerator(
-        config=_config(parse_retries=2), client=client, sleep=sleeps.append
-    )
+    client = FakeClient([text_message("not json at all"), text_message(SAMPLE_POEM)])
+    gen = PoemGenerator(config=_config(parse_retries=2), client=client, sleep=sleeps.append)
 
     result = gen.generate(Character.YURI)
 
@@ -89,9 +85,7 @@ def test_retries_on_invalid_then_succeeds():
 
 def test_raises_after_exhausting_retries():
     client = FakeClient([text_message("nope"), text_message("still nope")])
-    gen = PoemGenerator(
-        config=_config(parse_retries=1), client=client, sleep=lambda _s: None
-    )
+    gen = PoemGenerator(config=_config(parse_retries=1), client=client, sleep=lambda _s: None)
 
     with pytest.raises(PoemGenerationError):
         gen.generate(Character.YURI)

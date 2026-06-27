@@ -40,12 +40,21 @@ DEFAULT_WORKFLOW: dict = {
             "latent_image": ["5", 0],
         },
     },
-    "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "anything-v5.safetensors"}},
-    "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 512, "batch_size": 1}},
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {"ckpt_name": "anything-v5.safetensors"},
+    },
+    "5": {
+        "class_type": "EmptyLatentImage",
+        "inputs": {"width": 512, "height": 512, "batch_size": 1},
+    },
     "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
     "7": {"class_type": "CLIPTextEncode", "inputs": {"text": DEFAULT_NEGATIVE, "clip": ["4", 1]}},
     "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
-    "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "ddlc_poem", "images": ["8", 0]}},
+    "9": {
+        "class_type": "SaveImage",
+        "inputs": {"filename_prefix": "ddlc_poem", "images": ["8", 0]},
+    },
 }
 
 

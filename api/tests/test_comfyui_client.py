@@ -20,9 +20,7 @@ def _make_client(tmp_path, captured):
                     "abc": {
                         "outputs": {
                             "9": {
-                                "images": [
-                                    {"filename": "x.png", "subfolder": "", "type": "output"}
-                                ]
+                                "images": [{"filename": "x.png", "subfolder": "", "type": "output"}]
                             }
                         }
                     }
@@ -34,9 +32,7 @@ def _make_client(tmp_path, captured):
         return httpx.Response(404)
 
     http = httpx.Client(transport=httpx.MockTransport(handler))
-    return ComfyUIClient(
-        "http://comfyui:8188", http=http, data_dir=tmp_path, poll_interval=0
-    )
+    return ComfyUIClient("http://comfyui:8188", http=http, data_dir=tmp_path, poll_interval=0)
 
 
 def test_generate_saves_image_and_substitutes_workflow(tmp_path):

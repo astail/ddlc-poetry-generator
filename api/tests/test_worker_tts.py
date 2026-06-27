@@ -70,9 +70,7 @@ def test_english_uses_poem_en():
     sf = _factory()
     job_id, _ = _seed(sf, lang="en")
     seen = {}
-    AudioWorker(sf, FakeRedis([]), lambda a, t: seen.setdefault("t", t) or "/x.wav").process(
-        job_id
-    )
+    AudioWorker(sf, FakeRedis([]), lambda a, t: seen.setdefault("t", t) or "/x.wav").process(job_id)
     assert seen["t"] == "english text"
 
 
