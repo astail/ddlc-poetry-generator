@@ -19,7 +19,105 @@ body {
 .container {
   max-width: 720px;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 1rem 1.25rem 4rem;
+}
+
+.nav {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.9rem 1.25rem;
+  background: var(--accent);
+}
+
+.nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.filters button {
+  margin: 0;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  background: #f3d3df;
+  color: var(--fg);
+}
+
+.filters button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.9rem;
+}
+
+.card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--card);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(227, 93, 138, 0.12);
+}
+
+.card img,
+.card-noimg {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+}
+
+.card-noimg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7e4ec;
+  color: #c98aa6;
+  font-size: 0.8rem;
+}
+
+.card-body {
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-body strong {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-body span {
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.pager button {
+  margin: 0;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
 }
 
 h1 {
