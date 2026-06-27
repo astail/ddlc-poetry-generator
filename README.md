@@ -33,15 +33,19 @@ cp .env.example .env
 #    → .env の SD_CHECKPOINT を、取得したファイル名に合わせて設定する
 
 # 3) 起動（初回はイメージビルド + ComfyUI のベースイメージ取得で時間がかかります）
+#    DB マイグレーションは migrate サービスが起動時に自動実行します
+#    （api / worker はその完了を待ってから起動するため、初回リクエストでも
+#     テーブルが揃っています）。手動で流す必要はありません。
 docker compose up -d --build
 
-# 4) DB マイグレーション（初回のみ）
-docker compose run --rm api alembic upgrade head
-
-# 5) ブラウザで開く
+# 4) ブラウザで開く
 #    フロント:   http://localhost:3000
 #    API ドキュメント: http://localhost:8000/docs
 ```
+
+> マイグレーションを手動で流したい場合（再実行や確認用）:
+> `docker compose run --rm migrate`（または `docker compose run --rm api alembic upgrade head`）。
+> 初期マイグレーション（`0001_initial`）は `now()` を `server_default` に使う **Postgres 前提**です（本スタックの DB は PostgreSQL）。
 
 キャラとお題を選んで **Generate** すると、詩がすぐ表示され、画像と音声が後追いで埋まります。
 過去の生成物は **Gallery**（`/gallery`）から再閲覧できます。
@@ -97,7 +101,7 @@ CI（GitHub Actions）でも `docker compose config` 検証と `ruff` + `pytest`
   - GPU 認識確認（:8188 はホスト非公開のためコンテナ内から）: `docker compose exec comfyui python -c "import urllib.request,sys; sys.stdout.write(urllib.request.urlopen('http://localhost:8188/system_stats').read().decode())"`（`cuda` デバイスが出るか）
   - VRAM 不足: ComfyUI は `--lowvram` 起動。`SD_WIDTH/HEIGHT` を下げる
   - チェックポイント未配置: `./comfyui/download_models.sh` を実行し、`SD_CHECKPOINT` を一致させる
-- **API が 500 / テーブルが無い**: `docker compose run --rm api alembic upgrade head` を実行
+- **API が 500 / テーブルが無い**: 通常は `migrate` サービスが起動時に自動適用しますが、失敗した場合は `docker compose logs migrate` を確認し、`docker compose run --rm migrate`（= `alembic upgrade head`）を再実行
 - **音声が `failed`**: 初回はボイス DL に時間がかかる。ネットワークと `/data/voices` を確認
 - **`POST /api/generate` が 429**: レート制限。`RATE_LIMIT_PER_MIN` を調整
 - **フロントから API に繋がらない**: `NEXT_PUBLIC_API_BASE`（既定 `http://localhost:8000`）を確認
