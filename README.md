@@ -94,7 +94,7 @@ CI（GitHub Actions）でも `docker compose config` 検証と `ruff` + `pytest`
 
 - **画像が `failed` / ComfyUI が起動しない**
   - `nvidia-container-toolkit` が入っているか: `docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi`
-  - GPU 認識確認: `curl localhost:8188/system_stats`（`cuda` デバイスが出るか）
+  - GPU 認識確認（:8188 はホスト非公開のためコンテナ内から）: `docker compose exec comfyui python -c "import urllib.request,sys; sys.stdout.write(urllib.request.urlopen('http://localhost:8188/system_stats').read().decode())"`（`cuda` デバイスが出るか）
   - VRAM 不足: ComfyUI は `--lowvram` 起動。`SD_WIDTH/HEIGHT` を下げる
   - チェックポイント未配置: `./comfyui/download_models.sh` を実行し、`SD_CHECKPOINT` を一致させる
 - **API が 500 / テーブルが無い**: `docker compose run --rm api alembic upgrade head` を実行
