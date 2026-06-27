@@ -25,6 +25,9 @@ from .deps import (
     get_rate_limiter,
     get_session,
 )
+from .image_models import catalog as image_model_catalog
+from .image_models import default_name as default_image_model
+from .image_models import resolve as resolve_image_model
 from .models import Poem
 from .queue import JobQueue
 from .ratelimit import RateLimiter
@@ -110,6 +113,9 @@ class GenerateRequest(BaseModel):
     # omit the flags keep getting image + audio (backward compatible).
     generate_image: bool = True
     generate_audio: bool = True
+    # Image checkpoint to use. None = the configured default. Validated against
+    # the allow-list (#49); unknown names are rejected (422).
+    model: Optional[str] = Field(default=None, max_length=200)
 
 
 # ---------------------------------------------------------------- response models
@@ -121,6 +127,7 @@ class ImageOut(BaseModel):
     width: int
     height: int
     seed: Optional[int]
+    checkpoint: Optional[str] = None  # image model used / selected (#49)
 
 
 class AudioOut(BaseModel):
@@ -193,6 +200,7 @@ def _detail(poem: Poem) -> PoemDetail:
                 width=i.width,
                 height=i.height,
                 seed=i.seed,
+                checkpoint=i.checkpoint,
             )
             for i in poem.images
         ],
@@ -237,6 +245,12 @@ def generate(
     generator: PoemGenerator = Depends(get_generator),
     queue: JobQueue = Depends(get_queue),
 ) -> PoemDetail:
+    # Validate the requested image model against the allow-list (rejects unknown
+    # names / path injection). None resolves to the configured default.
+    try:
+        image_model = resolve_image_model(req.model).name
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"unknown image model: {req.model}")
     service = GenerationService(generator, queue)
     poem = service.generate(
         session,
@@ -245,8 +259,20 @@ def generate(
         req.lang,
         generate_image=req.generate_image,
         generate_audio=req.generate_audio,
+        image_checkpoint=image_model,
     )
     return _detail(poem)
+
+
+@app.get("/api/models")
+def list_models() -> dict:
+    """Selectable image-generation models (for the frontend dropdown, #49)."""
+    return {
+        "default": default_image_model(),
+        "models": [
+            {"name": m.name, "label": m.label, "type": m.type} for m in image_model_catalog()
+        ],
+    }
 
 
 @app.get("/api/poems", response_model=list[PoemSummary])

@@ -120,26 +120,16 @@ def _default_processor() -> ImageProcessor:
     from pathlib import Path
 
     from .comfyui_client import ComfyUIClient, make_comfyui_processor, workflow_for
+    from .image_models import default_name, default_type
 
-    model_type = os.environ.get("SD_MODEL_TYPE", "sd15").lower()
-    is_sdxl = model_type == "sdxl"
-    default_size = "1024" if is_sdxl else "512"
-    default_steps = "30" if is_sdxl else "25"
-    default_ckpt = "sdxl.safetensors" if is_sdxl else "anything-v5.safetensors"
-
+    # The processor picks the workflow/resolution per request from the selected
+    # model's type (#49); the client's default workflow is just a fallback.
     client = ComfyUIClient(
         os.environ.get("COMFYUI_URL", "http://comfyui:8188"),
         data_dir=Path(os.environ.get("DATA_DIR", "/data")),
-        workflow=workflow_for(model_type),
+        workflow=workflow_for(default_type()),
     )
-    return make_comfyui_processor(
-        client,
-        checkpoint=os.environ.get("SD_CHECKPOINT", default_ckpt),
-        steps=int(os.environ.get("SD_STEPS", default_steps)),
-        cfg=float(os.environ.get("SD_CFG", "7")),
-        width=int(os.environ.get("SD_WIDTH", default_size)),
-        height=int(os.environ.get("SD_HEIGHT", default_size)),
-    )
+    return make_comfyui_processor(client, checkpoint=default_name())
 
 
 def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:

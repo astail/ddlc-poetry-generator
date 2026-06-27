@@ -83,6 +83,40 @@ def test_generate_returns_bilingual_poem_and_enqueues(client):
     assert len(client.queue.items.get("audio", [])) == 1
 
 
+def test_generate_with_selected_model_sets_checkpoint(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "model": "AnythingXL_v50.safetensors"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["images"][0]["checkpoint"] == "AnythingXL_v50.safetensors"
+
+
+def test_generate_default_model_when_omitted(client):
+    r = client.post("/api/generate", json={"character": "yuri"})
+    assert r.status_code == 200, r.text
+    # Falls back to the configured default checkpoint (allow-listed).
+    assert r.json()["images"][0]["checkpoint"] == "anything-v5.safetensors"
+
+
+def test_generate_rejects_unknown_model(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "model": "../../etc/passwd"},
+    )
+    assert r.status_code == 422
+    assert "unknown image model" in r.json()["detail"]
+
+
+def test_list_models_endpoint(client):
+    body = client.get("/api/models").json()
+    assert body["default"] == "anything-v5.safetensors"
+    names = {m["name"] for m in body["models"]}
+    assert "AnythingXL_v50.safetensors" in names
+    anyxl = next(m for m in body["models"] if m["name"] == "AnythingXL_v50.safetensors")
+    assert anyxl["type"] == "sdxl"
+
+
 def test_generate_image_only_skips_audio(client):
     r = client.post(
         "/api/generate",

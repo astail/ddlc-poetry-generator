@@ -101,3 +101,43 @@ def test_processor_records_checkpoint(tmp_path):
     image = Image(prompt="p", negative="", seed=123, width=512, height=512)
     processor(image)
     assert image.checkpoint == "AnythingXL_v50.safetensors"
+
+
+def test_processor_uses_sdxl_workflow_and_1024_for_sdxl_model(tmp_path):
+    # A per-request SDXL model (image.checkpoint) must drive the SDXL workflow
+    # and 1024px — not the 512 default that image.width carries.
+    captured = {}
+    client = _make_client(tmp_path, captured)
+    processor = make_comfyui_processor(client, env={})
+    image = Image(
+        prompt="p",
+        negative="",
+        seed=1,
+        width=512,
+        height=512,
+        checkpoint="AnythingXL_v50.safetensors",
+    )
+    processor(image)
+    wf = captured["workflow"]
+    assert wf["3"]["inputs"]["sampler_name"] == "dpmpp_2m"  # SDXL sampler
+    assert wf["5"]["inputs"]["width"] == 1024
+    assert wf["4"]["inputs"]["ckpt_name"] == "AnythingXL_v50.safetensors"
+    assert image.width == 1024 and image.height == 1024  # recorded on the image
+
+
+def test_processor_uses_sd15_512_for_sd15_model(tmp_path):
+    captured = {}
+    client = _make_client(tmp_path, captured)
+    processor = make_comfyui_processor(client, env={})
+    image = Image(
+        prompt="p",
+        negative="",
+        seed=1,
+        width=512,
+        height=512,
+        checkpoint="anything-v5.safetensors",
+    )
+    processor(image)
+    wf = captured["workflow"]
+    assert wf["3"]["inputs"]["sampler_name"] == "euler_ancestral"  # SD1.5 sampler
+    assert wf["5"]["inputs"]["width"] == 512
