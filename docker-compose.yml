@@ -21,8 +21,10 @@ services:
     volumes:
       - data:/data
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-gpu:
@@ -34,8 +36,10 @@ services:
     volumes:
       - data:/data
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-tts:
@@ -48,8 +52,10 @@ services:
     volumes:
       - data:/data
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     restart: unless-stopped
     # deploy:
     #   resources:
@@ -87,10 +93,20 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ddlc} -d ${POSTGRES_DB:-ddlc_poems}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   data:
