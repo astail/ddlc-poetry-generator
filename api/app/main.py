@@ -66,6 +66,11 @@ def enforce_rate_limit(
     request: Request,
     limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> None:
+    # Identify the client by source IP. Behind a reverse proxy / Docker bridge
+    # this is the gateway IP unless uvicorn runs with --proxy-headers (+ a
+    # trusted --forwarded-allow-ips); we intentionally do NOT trust a raw
+    # X-Forwarded-For header here, since that is client-spoofable. The limiter
+    # itself bounds memory so unknown/abusive IPs can't grow state unbounded.
     key = request.client.host if request.client else "anon"
     allowed, retry_after = limiter.check(key)
     if not allowed:
