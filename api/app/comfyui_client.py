@@ -177,6 +177,9 @@ def make_comfyui_processor(
     def processor(image: Image) -> str:
         if image.seed is None:
             image.seed = random.randint(0, 2**32 - 1)  # recorded on commit
+        # Record which checkpoint produced this image (provenance); the column
+        # existed but was never populated, so the model used was untrackable.
+        image.checkpoint = checkpoint
         return client.generate(
             prompt=image.prompt,
             negative=image.negative,

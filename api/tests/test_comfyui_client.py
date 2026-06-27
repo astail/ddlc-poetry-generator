@@ -92,3 +92,12 @@ def test_processor_assigns_seed_when_missing(tmp_path):
     processor(image)
     assert image.seed is not None
     assert captured["workflow"]["3"]["inputs"]["seed"] == image.seed
+
+
+def test_processor_records_checkpoint(tmp_path):
+    # The checkpoint used must be persisted on the Image for provenance.
+    client = _make_client(tmp_path, {})
+    processor = make_comfyui_processor(client, checkpoint="AnythingXL_v50.safetensors")
+    image = Image(prompt="p", negative="", seed=123, width=512, height=512)
+    processor(image)
+    assert image.checkpoint == "AnythingXL_v50.safetensors"
