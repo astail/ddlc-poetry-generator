@@ -9,8 +9,8 @@
 | `db` | 生成物メタデータ | – | PostgreSQL |
 | `redis` | ジョブキュー / ブローカー | – | Redis |
 | `comfyui` | Stable Diffusion 実行（HTTP API） | ✅ 占有 | ComfyUI |
-| `worker-gpu` | 画像ジョブ消費 → ComfyUI 呼び出し → 保存 | – | Python (arq/RQ) |
-| `worker-tts` | 音声ジョブ消費 → Piper(CPU)/XTTS(GPU) → 保存 | △ 任意 | Python (arq/RQ) |
+| `worker-gpu` | 画像ジョブ消費 → ComfyUI 呼び出し → 保存 | – | Python（自前の Redis list キュー） |
+| `worker-tts` | 音声ジョブ消費 → Piper(CPU)/XTTS(GPU) → 保存 | △ 任意 | Python（自前の Redis list キュー） |
 
 > 画像生成の重い処理は `comfyui` に集約し、GPU の占有点を1つにする。`worker-gpu` は
 > ComfyUI の API を叩くだけなので GPU を直接持たない。XTTS を使う場合のみ `worker-tts`
@@ -46,7 +46,7 @@
 [worker-gpu] image ジョブ ─▶ ComfyUI(SD) ─▶ /data に画像保存 ─▶ images 更新
 [worker-tts] audio ジョブ ─▶ Piper/XTTS   ─▶ /data に音声保存 ─▶ audios 更新
      │
-[frontend] GET /api/poems/{id}/status (SSE) で進捗を購読し、絵・声が揃い次第表示
+[frontend] GET /api/poems/{id} を約2秒間隔でポーリングして進捗確認し、絵・声が揃い次第表示
 ```
 
 ## ストレージ
