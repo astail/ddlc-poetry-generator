@@ -26,6 +26,20 @@ services:
       - api
     restart: unless-stopped
 
+  # One-shot DB migration: runs `alembic upgrade head` once and exits. api and
+  # the workers wait for it to finish (service_completed_successfully) so the
+  # very first request after `docker compose up` can't hit missing tables (#64).
+  # Reuses the api image (alembic is installed there) and the same DATABASE_URL.
+  migrate:
+    build: ./api
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env]
+    environment: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build: ./api
     ports:
@@ -39,6 +53,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   worker-gpu:
@@ -55,6 +71,8 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   worker-tts:
@@ -72,6 +90,8 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     # deploy:
     #   resources:
