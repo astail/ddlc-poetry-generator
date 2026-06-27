@@ -38,8 +38,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install deps
-        run: cd frontend && npm install --no-audit --no-fund
+      - name: Install deps (from lockfile)
+        run: cd frontend && npm ci --no-audit --no-fund
       - name: Type check
         run: cd frontend && npx tsc --noEmit
       - name: Build
@@ -71,10 +71,8 @@ jobs:
         with:
           node-version: "20"
       - name: npm audit (frontend)
-        run: |
-          cd frontend
-          npm install --package-lock-only --no-audit --no-fund
-          npm audit --audit-level=high || true
+        # Reads the committed package-lock.json directly (no install needed).
+        run: cd frontend && npm audit --audit-level=high || true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

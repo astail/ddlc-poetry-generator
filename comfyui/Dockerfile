@@ -6,8 +6,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
+# Pin ComfyUI to a specific release tag for reproducibility (was master HEAD,
+# which could change under us / pull in unreviewed code). Bump deliberately.
+ARG COMFYUI_VERSION=v0.26.0
 WORKDIR /opt
-RUN git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git
+RUN git clone --depth 1 --branch "${COMFYUI_VERSION}" \
+    https://github.com/comfyanonymous/ComfyUI.git
 WORKDIR /opt/ComfyUI
 RUN pip install -r requirements.txt
 

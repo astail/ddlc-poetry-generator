@@ -93,7 +93,15 @@ docker compose run --rm --no-deps api python -m pytest
 docker compose run --rm --no-deps api sh -c "ruff check . && ruff format --check ."
 ```
 
-CI（GitHub Actions）でも `docker compose config` 検証と `ruff` + `pytest` を実行します。
+CI（GitHub Actions）では `docker compose config` 検証・`ruff`/`pytest`・フロントの型/build/lint・api/frontend イメージのビルド・依存監査を実行します。
+
+### 依存の固定（再現性）
+
+ビルドを再現可能にするため依存をロックしています。更新時は再生成してコミットしてください:
+
+- **Python（api）**: `cd api && uv pip compile pyproject.toml --extra dev -o requirements.txt`（Dockerfile はこの `requirements.txt` 基準でインストール）。
+- **フロント**: `cd frontend && npm install`（`package-lock.json` を更新）。Dockerfile / CI は `npm ci` でロック基準にインストール。
+- **ComfyUI**: `comfyui/Dockerfile` の `COMFYUI_VERSION`（リリースタグ）を更新。
 
 ## トラブルシュート
 
