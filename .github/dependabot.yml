@@ -1,0 +1,63 @@
+# Dependabot keeps dependencies patched automatically (#63).
+# One entry per package ecosystem present in the repo. Minor/patch updates are
+# grouped into a single PR per ecosystem to cut review noise; major bumps stay
+# as individual PRs so breaking changes get reviewed on their own.
+version: 2
+updates:
+  # Frontend (Next.js / React)
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # API / workers (Python, pyproject.toml)
+  - package-ecosystem: pip
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      api-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions used by CI
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Container base images (one entry per Dockerfile directory)
+  - package-ecosystem: docker
+    directory: /api
+    schedule:
+      interval: weekly
+    groups:
+      docker-api:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /comfyui
+    schedule:
+      interval: weekly
+    groups:
+      docker-comfyui:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      docker-frontend:
+        update-types: [minor, patch]
