@@ -2,6 +2,13 @@
 # Services are scaffolded here; Dockerfiles and app code are filled in per-issue (M0–M3).
 # Requires: Docker Compose v2+, NVIDIA driver + nvidia-container-toolkit on the host.
 
+# Single source of truth for the DB connection string. The password is taken
+# only from POSTGRES_PASSWORD (no duplicated literal in .env), and has NO
+# default: compose fails fast if it is unset/empty instead of silently shipping
+# the weak `change-me` credential. Shared by api + workers via `environment`.
+x-database-url: &database-url
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ddlc}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (no default; see .env.example)}@db:5432/${POSTGRES_DB:-ddlc_poems}
+
 services:
   frontend:
     build:
@@ -24,6 +31,7 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     env_file: [.env]
+    environment: *database-url
     volumes:
       - data:/data
     depends_on:
@@ -39,6 +47,7 @@ services:
     build: ./api
     command: ["python", "-m", "app.worker_gpu"]
     env_file: [.env]
+    environment: *database-url
     volumes:
       - data:/data
     depends_on:
@@ -55,6 +64,7 @@ services:
     build: ./api
     command: ["python", "-m", "app.worker_tts"]
     env_file: [.env]
+    environment: *database-url
     volumes:
       - data:/data
     depends_on:
@@ -94,7 +104,9 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ddlc}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      # No default: fail fast if unset/empty rather than booting with a weak,
+      # publicly-known password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (no default; see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-ddlc_poems}
     volumes:
       - pgdata:/var/lib/postgresql/data
