@@ -19,7 +19,7 @@ _EN_VOICE = "en_US-amy-low"
 class VoiceProfile:
     voice: str
     length_scale: float  # >1 slower, <1 faster
-    noise_scale: float   # expressiveness
+    noise_scale: float  # expressiveness
 
 
 # character -> profile. length_scale/noise_scale tuned to each persona's pacing.

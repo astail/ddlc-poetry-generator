@@ -85,8 +85,12 @@ class AudioWorker:
                 job.error = None
             except Exception as exc:  # noqa: BLE001
                 handle_job_failure(
-                    self._redis, job, audio, exc,
-                    job_type="audio", max_retries=self._max_retries,
+                    self._redis,
+                    job,
+                    audio,
+                    exc,
+                    job_type="audio",
+                    max_retries=self._max_retries,
                 )
                 logger.exception("audio job %s failed", job_id)
             session.commit()

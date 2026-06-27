@@ -29,9 +29,7 @@ class PoemConfig:
         env = env if env is not None else os.environ
         api_key = env.get("ANTHROPIC_API_KEY")
         if not api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set (copy .env.example to .env)"
-            )
+            raise RuntimeError("ANTHROPIC_API_KEY is not set (copy .env.example to .env)")
         temp = env.get("POEM_TEMPERATURE")
         return cls(
             api_key=api_key,

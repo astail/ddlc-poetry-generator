@@ -14,4 +14,19 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config -q
-        # NOTE(M0): extend with ruff/eslint/prettier once app code lands.
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install api (with dev deps)
+        run: pip install "./api[dev]"
+      - name: Ruff lint
+        run: cd api && ruff check .
+      - name: Ruff format check
+        run: cd api && ruff format --check .
+      - name: Unit tests
+        run: cd api && python -m pytest

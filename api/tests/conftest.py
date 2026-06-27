@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import List, Optional
+from typing import List
 
 
 def text_message(

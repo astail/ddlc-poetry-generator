@@ -77,7 +77,11 @@ class PiperSynthesizer:
             self._synthesize(voice, text, wav_file, profile)
         logger.info(
             "synthesized %s (char=%s lang=%s voice=%s len=%s)",
-            out_path, character, audio.lang, profile.voice, profile.length_scale,
+            out_path,
+            character,
+            audio.lang,
+            profile.voice,
+            profile.length_scale,
         )
         return str(out_path)
 

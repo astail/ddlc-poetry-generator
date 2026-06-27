@@ -89,9 +89,7 @@ def test_invalid_character_is_422(client):
 
 
 def test_theme_too_long_is_422(client):
-    r = client.post(
-        "/api/generate", json={"character": "monika", "theme": "x" * 500}
-    )
+    r = client.post("/api/generate", json={"character": "monika", "theme": "x" * 500})
     assert r.status_code == 422
 
 

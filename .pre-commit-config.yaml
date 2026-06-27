@@ -1,0 +1,13 @@
+# Run: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: ["--fix", "--config", "api/pyproject.toml"]
+        files: ^api/.*\.py$
+      - id: ruff-format
+        name: ruff (format)
+        args: ["--config", "api/pyproject.toml"]
+        files: ^api/.*\.py$
