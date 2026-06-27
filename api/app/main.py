@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 from datetime import datetime
 from pathlib import Path
@@ -79,7 +80,11 @@ def require_api_key(
     x_api_key: Optional[str] = Header(default=None),
     token: Optional[str] = Depends(get_api_auth_token),
 ) -> None:
-    if token and x_api_key != token:
+    # Constant-time compare so the response time doesn't leak how many leading
+    # characters of the shared secret matched (timing side-channel). Compare as
+    # bytes: compare_digest on str rejects non-ASCII, so a non-ASCII X-API-Key
+    # header would otherwise raise (500) instead of cleanly failing auth.
+    if token and not hmac.compare_digest((x_api_key or "").encode(), token.encode()):
         raise HTTPException(status_code=401, detail="invalid or missing API key")
 
 
@@ -207,7 +212,11 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/api/stats")
+# /api/stats exposes aggregate usage (total poems, per-character counts, asset
+# states). When an API key is configured it should not be world-readable, so it
+# is guarded by the same key as /api/generate. With no key configured
+# require_api_key is a no-op, keeping the endpoint open for local/self-hosting.
+@app.get("/api/stats", dependencies=[Depends(require_api_key)])
 def stats(session: Session = Depends(get_session)) -> dict:
     return get_stats(session)
 
