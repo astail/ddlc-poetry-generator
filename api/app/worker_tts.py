@@ -108,9 +108,16 @@ class AudioWorker:
 def _default_synthesizer() -> Synthesizer:
     from pathlib import Path
 
+    data_dir = Path(os.environ.get("DATA_DIR", "/data"))
+    backend = os.environ.get("TTS_BACKEND", "piper").lower()
+    if backend == "xtts":
+        from .tts_xtts import XttsSynthesizer
+
+        return XttsSynthesizer(data_dir=data_dir)
+
     from .tts import PiperSynthesizer
 
-    return PiperSynthesizer(data_dir=Path(os.environ.get("DATA_DIR", "/data")))
+    return PiperSynthesizer(data_dir=data_dir)
 
 
 def build_worker(synthesizer: Optional[Synthesizer] = None) -> AudioWorker:

@@ -22,6 +22,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Optional GPU TTS backend (#16). Heavy (pulls torch); install only for XTTS:
+#   pip install ".[xtts]"   and set TTS_BACKEND=xtts on a GPU worker.
+xtts = ["coqui-tts>=0.24"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
