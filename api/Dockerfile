@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Run as a non-root user (defence in depth, #55). The named /data volume inherits
 # this ownership on first init so the app and workers can write generated assets.
