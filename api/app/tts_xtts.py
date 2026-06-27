@@ -12,6 +12,7 @@ The coqui ``TTS`` import is lazy so the default (Piper) image needs no torch.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from .models import Audio
@@ -46,6 +47,10 @@ class XttsSynthesizer:
 
     def _load(self):
         if self._tts is None:
+            # Coqui prompts interactively to accept the model's TOS on first
+            # load; in a non-interactive worker that would hang forever. Opt in
+            # up front (overridable via the env) so the download proceeds.
+            os.environ.setdefault("COQUI_TOS_AGREED", "1")
             from TTS.api import TTS  # lazy: only when XTTS is actually used
 
             self._tts = TTS(self._model_name, gpu=self._use_gpu)
