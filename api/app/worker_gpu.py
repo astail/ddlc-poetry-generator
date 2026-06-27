@@ -18,6 +18,7 @@ from typing import Callable, Optional
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Image, Job, JobStatus
 from .queue import queue_key
+from .worker_common import handle_job_failure
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,13 @@ class ImageWorker:
         redis_client,
         processor: ImageProcessor,
         block_timeout: int = 5,
+        max_retries: int = 1,
     ):
         self._session_factory = session_factory
         self._redis = redis_client
         self._processor = processor
         self._block_timeout = block_timeout
+        self._max_retries = max_retries
 
     def run_once(self) -> bool:
         """Block for one job; return True if one was consumed, False on timeout."""
@@ -79,9 +82,10 @@ class ImageWorker:
                 job.status = JobStatus.DONE
                 job.error = None
             except Exception as exc:  # noqa: BLE001 - record failure, keep looping
-                image.status = AssetStatus.FAILED
-                job.status = JobStatus.FAILED
-                job.error = str(exc)[:500]
+                handle_job_failure(
+                    self._redis, job, image, exc,
+                    job_type="image", max_retries=self._max_retries,
+                )
                 logger.exception("image job %s failed", job_id)
             session.commit()
 
@@ -120,7 +124,12 @@ def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
     client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
-    return ImageWorker(session_factory, client, processor or _default_processor())
+    return ImageWorker(
+        session_factory,
+        client,
+        processor or _default_processor(),
+        max_retries=int(os.environ.get("JOB_MAX_RETRIES", "1")),
+    )
 
 
 def main() -> None:

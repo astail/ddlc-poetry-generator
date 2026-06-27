@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .claude_client import PoemGenerator
 from .db import create_db_engine, make_session_factory
 from .queue import JobQueue, RedisJobQueue
+from .ratelimit import RateLimiter
 
 
 @lru_cache
@@ -39,3 +40,8 @@ def get_queue() -> JobQueue:
 
 def get_data_dir() -> Path:
     return Path(os.environ.get("DATA_DIR", "/data"))
+
+
+@lru_cache
+def get_rate_limiter() -> RateLimiter:
+    return RateLimiter(int(os.environ.get("RATE_LIMIT_PER_MIN", "20")), 60)

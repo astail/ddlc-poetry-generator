@@ -29,11 +29,21 @@ def _seed(sf, lang="en"):
 class FakeRedis:
     def __init__(self, items):
         self.items = list(items)
+        self.counters = {}
+        self.pushed = []
 
     def blpop(self, keys, timeout=0):
         if self.items:
             return (keys[0].encode(), str(self.items.pop(0)).encode())
         return None
+
+    def incr(self, key):
+        self.counters[key] = self.counters.get(key, 0) + 1
+        return self.counters[key]
+
+    def rpush(self, key, value):
+        self.pushed.append((key, value))
+        self.items.append(value)
 
 
 def test_process_success_uses_lang_text():
@@ -66,18 +76,36 @@ def test_english_uses_poem_en():
     assert seen["t"] == "english text"
 
 
-def test_failure_records_error():
+def test_failure_dead_letters_without_retries():
     sf = _factory()
     job_id, audio_id = _seed(sf)
 
     def synth(audio, text):
         raise RuntimeError("piper boom")
 
-    AudioWorker(sf, FakeRedis([]), synth).process(job_id)
+    AudioWorker(sf, FakeRedis([]), synth, max_retries=0).process(job_id)
     with sf() as s:
         assert s.get(Job, job_id).status == JobStatus.FAILED
         assert "piper boom" in s.get(Job, job_id).error
         assert s.get(Audio, audio_id).status == AssetStatus.FAILED
+
+
+def test_failure_retries_then_dead_letters():
+    sf = _factory()
+    job_id, _ = _seed(sf)
+    redis = FakeRedis([])
+
+    def synth(audio, text):
+        raise RuntimeError("boom")
+
+    worker = AudioWorker(sf, redis, synth, max_retries=1)
+    worker.process(job_id)
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.QUEUED
+    assert redis.pushed == [("jobs:audio", job_id)]
+    worker.process(job_id)
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.FAILED
 
 
 def test_run_once_consumes():
