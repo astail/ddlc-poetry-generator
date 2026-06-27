@@ -18,10 +18,15 @@ def persist_poem(
     theme: Optional[str] = None,
     lang: str = "en",
     model: Optional[str] = None,
+    generate_image: bool = True,
+    generate_audio: bool = True,
 ) -> tuple[Poem, list[Job]]:
-    """Create the Poem plus its pending Image/Audio assets and their Jobs.
+    """Create the Poem plus the selected pending Image/Audio assets and Jobs.
 
-    Returns the persisted Poem and the two queued Jobs (image, audio).
+    ``generate_image`` / ``generate_audio`` opt each asset in or out: an asset
+    (and its Job) is only created when its flag is set, so "image only",
+    "audio only", and "both" all work. Defaults keep both on for backward
+    compatibility. Returns the persisted Poem and the queued Jobs.
     """
     poem = Poem(
         character=result.character,
@@ -33,20 +38,27 @@ def persist_poem(
         mood=result.mood,
         model=model,
     )
-    image = Image(prompt=result.image_prompt, negative=result.image_negative)
-    audio = Audio(lang=lang)
-    poem.images.append(image)
-    poem.audios.append(audio)
+    image = None
+    audio = None
+    if generate_image:
+        image = Image(prompt=result.image_prompt, negative=result.image_negative)
+        poem.images.append(image)
+    if generate_audio:
+        audio = Audio(lang=lang)
+        poem.audios.append(audio)
 
     session.add(poem)
     session.flush()  # assign ids
 
-    image_job = Job(type=JobType.IMAGE, ref_id=image.id)
-    audio_job = Job(type=JobType.AUDIO, ref_id=audio.id)
-    session.add_all([image_job, audio_job])
+    jobs: list[Job] = []
+    if image is not None:
+        jobs.append(Job(type=JobType.IMAGE, ref_id=image.id))
+    if audio is not None:
+        jobs.append(Job(type=JobType.AUDIO, ref_id=audio.id))
+    session.add_all(jobs)
     session.commit()
     session.refresh(poem)
-    return poem, [image_job, audio_job]
+    return poem, jobs
 
 
 def get_poems(

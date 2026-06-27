@@ -24,6 +24,8 @@ class GenerationService:
         character: Union[Character, str],
         theme: Optional[str] = None,
         lang: str = "en",
+        generate_image: bool = True,
+        generate_audio: bool = True,
     ) -> Poem:
         result = self.generator.generate(character, theme)
         poem, jobs = persist_poem(
@@ -32,6 +34,8 @@ class GenerationService:
             theme=theme,
             lang=lang,
             model=self.generator.config.model,
+            generate_image=generate_image,
+            generate_audio=generate_audio,
         )
         for job in jobs:
             self.queue.enqueue(job.type, job.id)

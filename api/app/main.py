@@ -41,9 +41,7 @@ app = FastAPI(title="DDLC Poetry Generator API")
 # site can't read the API from a victim's browser. Credentials stay off (the
 # optional auth is the X-API-Key header, not cookies).
 _cors_origins = [
-    o.strip()
-    for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
-    if o.strip()
+    o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()
 ]
 _PRIVATE_ORIGIN_RE = (
     r"^https?://("
@@ -98,6 +96,10 @@ class GenerateRequest(BaseModel):
     character: Character
     theme: Optional[str] = Field(default=None, max_length=200)
     lang: str = Field(default="en", pattern="^(en|ja)$")
+    # Opt each asset in or out. Both default to True so existing callers that
+    # omit the flags keep getting image + audio (backward compatible).
+    generate_image: bool = True
+    generate_audio: bool = True
 
 
 # ---------------------------------------------------------------- response models
@@ -222,7 +224,14 @@ def generate(
     queue: JobQueue = Depends(get_queue),
 ) -> PoemDetail:
     service = GenerationService(generator, queue)
-    poem = service.generate(session, req.character, req.theme, req.lang)
+    poem = service.generate(
+        session,
+        req.character,
+        req.theme,
+        req.lang,
+        generate_image=req.generate_image,
+        generate_audio=req.generate_audio,
+    )
     return _detail(poem)
 
 

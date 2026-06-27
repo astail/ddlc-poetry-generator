@@ -83,6 +83,63 @@ def test_generate_returns_bilingual_poem_and_enqueues(client):
     assert len(client.queue.items.get("audio", [])) == 1
 
 
+def test_generate_image_only_skips_audio(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "generate_image": True, "generate_audio": False},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["image_status"] == "pending"
+    assert body["audio_status"] is None
+    assert len(body["images"]) == 1
+    assert body["audios"] == []
+
+    with client.session_local() as s:
+        assert {j.type for j in s.query(Job).all()} == {"image"}
+    assert len(client.queue.items.get("image", [])) == 1
+    assert len(client.queue.items.get("audio", [])) == 0
+
+
+def test_generate_audio_only_skips_image(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "generate_image": False, "generate_audio": True},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["audio_status"] == "pending"
+    assert body["image_status"] is None
+    assert len(body["audios"]) == 1
+    assert body["images"] == []
+
+    with client.session_local() as s:
+        assert {j.type for j in s.query(Job).all()} == {"audio"}
+    assert len(client.queue.items.get("audio", [])) == 1
+    assert len(client.queue.items.get("image", [])) == 0
+
+
+def test_generate_both_explicit_flags(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "generate_image": True, "generate_audio": True},
+    )
+    assert r.status_code == 200, r.text
+    with client.session_local() as s:
+        assert {j.type for j in s.query(Job).all()} == {"image", "audio"}
+
+
+def test_generate_omitting_flags_is_backward_compatible(client):
+    # No flags supplied -> both assets generated, as before.
+    r = client.post("/api/generate", json={"character": "monika"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["image_status"] == "pending"
+    assert body["audio_status"] == "pending"
+    with client.session_local() as s:
+        assert {j.type for j in s.query(Job).all()} == {"image", "audio"}
+
+
 def test_invalid_character_is_422(client):
     r = client.post("/api/generate", json={"character": "player", "theme": "x"})
     assert r.status_code == 422
