@@ -1,21 +1,28 @@
 FROM python:3.12-slim
 
+# Run as a non-root user (defence in depth, #55). The named /data volume inherits
+# this ownership on first init so the app and workers can write generated assets.
+RUN useradd --create-home --uid 10001 app
+
 WORKDIR /app
 
-# Install pinned dependencies first (better layer caching + reproducible builds).
-# requirements.txt is generated from pyproject.toml:
-#   uv pip compile pyproject.toml --extra dev -o requirements.txt
+# Install pinned RUNTIME deps only — no dev tools (pytest/ruff) or tests in the
+# production image (smaller image, smaller attack surface). Regenerate with:
+#   uv pip compile pyproject.toml -o requirements.txt
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY alembic ./alembic
-COPY tests ./tests
-COPY scripts ./scripts
 
-# Install the app package itself without re-resolving deps (already pinned above).
-RUN pip install --no-cache-dir --no-deps .
+# Install the app package without re-resolving deps (already pinned above), then
+# hand ownership of the workdir + data mountpoint to the non-root user.
+RUN pip install --no-cache-dir --no-deps . \
+    && mkdir -p /data \
+    && chown -R app:app /app /data
 
-# Run DB migrations separately:  docker compose run --rm api alembic upgrade head
+USER app
+
+# Migrations run via the one-shot `migrate` service:  docker compose run --rm migrate
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
