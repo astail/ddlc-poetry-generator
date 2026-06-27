@@ -147,3 +147,43 @@ button:disabled {
   padding: 0.4rem 0.9rem;
   font-size: 0.85rem;
 }
+
+.audio-area {
+  margin: 0 0 1rem;
+}
+
+.audio-area audio {
+  width: 100%;
+}
+
+.audio-langs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.audio-langs button {
+  margin: 0;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  background: #f3d3df;
+  color: var(--fg);
+}
+
+.audio-langs button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.audio-pending {
+  color: var(--accent);
+  font-weight: 600;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.audio-failed {
+  color: #b00020;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
