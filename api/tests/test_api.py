@@ -209,3 +209,18 @@ def test_api_key_required_when_configured(client):
 
 def test_open_when_no_token_configured(client):
     assert client.post("/api/generate", json={"character": "natsuki"}).status_code == 200
+
+
+def test_stats_requires_api_key_when_configured(client):
+    from app.deps import get_api_auth_token
+    from app.main import app
+
+    app.dependency_overrides[get_api_auth_token] = lambda: "secret"
+    assert client.get("/api/stats").status_code == 401
+    assert client.get("/api/stats", headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.get("/api/stats", headers={"X-API-Key": "secret"}).status_code == 200
+
+
+def test_stats_open_when_no_token_configured(client):
+    # No API_AUTH_TOKEN -> require_api_key is a no-op and /api/stats stays public.
+    assert client.get("/api/stats").status_code == 200
