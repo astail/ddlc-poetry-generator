@@ -13,6 +13,7 @@ import wave
 from pathlib import Path
 
 from .models import Audio
+from .voices import get_voice_profile
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +67,44 @@ class PiperSynthesizer:
         return self._cache[name]
 
     def __call__(self, audio: Audio, text: str) -> str:
-        voice = self._load(self.voice_for(audio.lang))
+        character = audio.poem.character if audio.poem is not None else None
+        profile = get_voice_profile(character, audio.lang)
+        voice = self._load(profile.voice)
         out_dir = self._data_dir / "audio"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{audio.id}.wav"
         with wave.open(str(out_path), "wb") as wav_file:
-            voice.synthesize_wav(text, wav_file)
-        logger.info("synthesized %s (%s)", out_path, audio.lang)
+            self._synthesize(voice, text, wav_file, profile)
+        logger.info(
+            "synthesized %s (char=%s lang=%s voice=%s len=%s)",
+            out_path, character, audio.lang, profile.voice, profile.length_scale,
+        )
         return str(out_path)
+
+    @staticmethod
+    def _synthesize(voice, text, wav_file, profile) -> None:
+        # Piper >= 1.3 takes a SynthesisConfig; older versions take kwargs.
+        try:
+            from piper import SynthesisConfig
+        except ImportError:
+            SynthesisConfig = None
+
+        if SynthesisConfig is not None:
+            try:
+                cfg = SynthesisConfig(
+                    length_scale=profile.length_scale,
+                    noise_scale=profile.noise_scale,
+                )
+                voice.synthesize_wav(text, wav_file, syn_config=cfg)
+                return
+            except TypeError:
+                pass
+        try:
+            voice.synthesize_wav(
+                text,
+                wav_file,
+                length_scale=profile.length_scale,
+                noise_scale=profile.noise_scale,
+            )
+        except TypeError:
+            voice.synthesize_wav(text, wav_file)
