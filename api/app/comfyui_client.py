@@ -197,9 +197,16 @@ def make_comfyui_processor(
             model = ImageModel(name, image_default_type(resolved_env), name)
         wf = workflow_for(model.type)
         sdxl = model.type == "sdxl"
+        # Resolution is driven by the model type (SDXL needs 1024 to look right),
+        # NOT image.width — that column defaults to 512, so `image.width or ...`
+        # would always win and silently render SDXL at 512.
+        width = int(resolved_env.get("SD_WIDTH", "1024" if sdxl else "512"))
+        height = int(resolved_env.get("SD_HEIGHT", "1024" if sdxl else "512"))
         if image.seed is None:
             image.seed = random.randint(0, 2**32 - 1)  # recorded on commit
         image.checkpoint = name  # provenance (#66)
+        image.width = width  # record the size actually generated
+        image.height = height
         return client.generate(
             workflow=wf,
             prompt=image.prompt,
@@ -208,8 +215,8 @@ def make_comfyui_processor(
             seed=image.seed,
             steps=int(resolved_env.get("SD_STEPS", "30" if sdxl else "25")),
             cfg=float(resolved_env.get("SD_CFG", "7")),
-            width=image.width or int(resolved_env.get("SD_WIDTH", "1024" if sdxl else "512")),
-            height=image.height or int(resolved_env.get("SD_HEIGHT", "1024" if sdxl else "512")),
+            width=width,
+            height=height,
         )
 
     return processor
