@@ -1,12 +1,12 @@
 # Multi-stage build producing a slim Next.js standalone server.
-FROM node:20-slim AS deps
+FROM node:26-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # npm ci installs exactly what package-lock.json pins (reproducible) and fails
 # if package.json and the lockfile drift out of sync.
 RUN npm ci
 
-FROM node:20-slim AS builder
+FROM node:26-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -18,7 +18,7 @@ ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 ENV NEXT_PUBLIC_API_PORT=$NEXT_PUBLIC_API_PORT
 RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:26-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
