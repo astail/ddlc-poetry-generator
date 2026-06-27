@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .models import Audio, Image, Job, JobType, Poem
 from .schemas import PoemResult
@@ -68,7 +68,12 @@ def get_poems(
     offset: int = 0,
     character: Optional[str] = None,
 ) -> list[Poem]:
-    stmt = select(Poem)
+    # Eager-load the image/audio relations so _summary's images[0] / audios[0]
+    # access doesn't fire a lazy query per row (was 1 + 2*N; now a constant 3).
+    stmt = select(Poem).options(
+        selectinload(Poem.images),
+        selectinload(Poem.audios),
+    )
     if character:
         stmt = stmt.where(Poem.character == character)
     stmt = stmt.order_by(Poem.id.desc()).limit(limit).offset(offset)

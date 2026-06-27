@@ -61,11 +61,14 @@ class Poem(Base):
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # order_by makes images[0] / audios[0] (used as the "representative" asset
+    # in API responses) deterministic instead of relying on undefined relation
+    # ordering.
     images: Mapped[list["Image"]] = relationship(
-        back_populates="poem", cascade="all, delete-orphan"
+        back_populates="poem", cascade="all, delete-orphan", order_by="Image.id"
     )
     audios: Mapped[list["Audio"]] = relationship(
-        back_populates="poem", cascade="all, delete-orphan"
+        back_populates="poem", cascade="all, delete-orphan", order_by="Audio.id"
     )
 
 

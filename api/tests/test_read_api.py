@@ -65,6 +65,49 @@ def test_list_filter_and_paging(client):
     assert len(r2.json()) == 1
 
 
+def test_get_poems_avoids_n_plus_1():
+    """get_poems eager-loads images/audios so the query count is constant.
+
+    With selectinload it is 1 (poems) + 1 (images) + 1 (audios) = 3 regardless
+    of how many rows are returned. Without it, _summary's images[0]/audios[0]
+    access would lazy-load per row (1 + 2*N).
+    """
+    from sqlalchemy import event
+
+    from app.repository import get_poems
+
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(engine, expire_on_commit=False)
+
+    with SessionLocal() as s:
+        for i in range(5):
+            poem = Poem(character="yuri", title=f"t{i}", poem_en="e", poem_ja="j", lang="en")
+            poem.images.append(Image(prompt="p"))
+            poem.audios.append(Audio(lang="en"))
+            s.add(poem)
+        s.commit()
+
+    selects: list[str] = []
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def _count(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT"):
+            selects.append(statement)
+
+    with SessionLocal() as s:
+        poems = get_poems(s, limit=100)
+        # Touch the representative assets exactly as _summary does.
+        touched = [(p.images[0].status, p.audios[0].status) for p in poems]
+
+    assert len(touched) == 5
+    assert len(selects) == 3, selects
+
+
 def test_get_poem_detail(client):
     _seed(client.session_local)
     pid = client.get("/api/poems").json()[0]["id"]
