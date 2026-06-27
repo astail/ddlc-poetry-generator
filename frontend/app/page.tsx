@@ -126,7 +126,7 @@ export default function Home() {
       )}
 
       {poem && (
-        <article className="poem" data-testid="poem">
+        <article className="poem" data-testid="poem" data-char={poem.character}>
           <h2>
             {poem.title} <small>— {poem.character}</small>
           </h2>

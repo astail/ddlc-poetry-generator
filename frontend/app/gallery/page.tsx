@@ -70,7 +70,7 @@ export default function Gallery() {
       ) : (
         <div className="gallery-grid">
           {items.map((p) => (
-            <Link key={p.id} href={`/poems/${p.id}`} className="card">
+            <Link key={p.id} href={`/poems/${p.id}`} className="card" data-char={p.character}>
               {p.image_status === "done" && p.image_url ? (
                 <img src={`${API_BASE}${p.image_url}`} alt={p.title} />
               ) : (
