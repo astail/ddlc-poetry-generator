@@ -25,6 +25,8 @@ export default function Home() {
   const [character, setCharacter] = useState<string>("monika");
   const [theme, setTheme] = useState("");
   const [lang, setLang] = useState("en");
+  const [genImage, setGenImage] = useState(true);
+  const [genAudio, setGenAudio] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
@@ -40,7 +42,13 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ character, theme: theme || null, lang }),
+        body: JSON.stringify({
+          character,
+          theme: theme || null,
+          lang,
+          generate_image: genImage,
+          generate_audio: genAudio,
+        }),
       });
       if (!res.ok) throw new Error(`API error ${res.status}`);
       setPoem((await res.json()) as Poem);
@@ -114,6 +122,26 @@ export default function Home() {
           </select>
         </label>
 
+        <fieldset className="assets">
+          <legend>生成するもの</legend>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={genImage}
+              onChange={(e) => setGenImage(e.target.checked)}
+            />
+            画像を生成
+          </label>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={genAudio}
+              onChange={(e) => setGenAudio(e.target.checked)}
+            />
+            音声を生成
+          </label>
+        </fieldset>
+
         <button type="submit" disabled={loading}>
           {loading ? "Generating…" : "Generate"}
         </button>
@@ -131,50 +159,54 @@ export default function Home() {
             {poem.title} <small>— {poem.character}</small>
           </h2>
 
-          <div className="image-area" data-testid="image-area">
-            {image?.status === "done" && image.url ? (
-              <img src={`${API_BASE}${image.url}`} alt={poem.title} className="poem-image" />
-            ) : image?.status === "failed" ? (
-              <div className="img-failed">
-                画像生成に失敗しました
-                <button type="button" onClick={() => generate()}>
-                  再生成
-                </button>
-              </div>
-            ) : (
-              <div className="img-pending">画像を生成中… ({image?.status ?? "queued"})</div>
-            )}
-          </div>
-
-          <div className="audio-area" data-testid="audio-area">
-            {audioLangs.length > 1 && (
-              <div className="audio-langs">
-                {audioLangs.map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    className={l === (audioLang ?? audioLangs[0]) ? "active" : ""}
-                    onClick={() => setAudioLang(l)}
-                  >
-                    {l.toUpperCase()}
+          {image && (
+            <div className="image-area" data-testid="image-area">
+              {image.status === "done" && image.url ? (
+                <img src={`${API_BASE}${image.url}`} alt={poem.title} className="poem-image" />
+              ) : image.status === "failed" ? (
+                <div className="img-failed">
+                  画像生成に失敗しました
+                  <button type="button" onClick={() => generate()}>
+                    再生成
                   </button>
-                ))}
-              </div>
-            )}
-            {selectedAudio?.status === "done" && selectedAudio.url ? (
-              <audio
-                controls
-                data-testid="audio-player"
-                src={`${API_BASE}${selectedAudio.url}`}
-              />
-            ) : selectedAudio?.status === "failed" ? (
-              <div className="audio-failed">音声生成に失敗しました</div>
-            ) : (
-              <div className="audio-pending">
-                音声を生成中… ({selectedAudio?.status ?? "queued"})
-              </div>
-            )}
-          </div>
+                </div>
+              ) : (
+                <div className="img-pending">画像を生成中… ({image.status ?? "queued"})</div>
+              )}
+            </div>
+          )}
+
+          {(poem.audios?.length ?? 0) > 0 && (
+            <div className="audio-area" data-testid="audio-area">
+              {audioLangs.length > 1 && (
+                <div className="audio-langs">
+                  {audioLangs.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      className={l === (audioLang ?? audioLangs[0]) ? "active" : ""}
+                      onClick={() => setAudioLang(l)}
+                    >
+                      {l.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedAudio?.status === "done" && selectedAudio.url ? (
+                <audio
+                  controls
+                  data-testid="audio-player"
+                  src={`${API_BASE}${selectedAudio.url}`}
+                />
+              ) : selectedAudio?.status === "failed" ? (
+                <div className="audio-failed">音声生成に失敗しました</div>
+              ) : (
+                <div className="audio-pending">
+                  音声を生成中… ({selectedAudio?.status ?? "queued"})
+                </div>
+              )}
+            </div>
+          )}
 
           <pre className="poem-text">{poem.poem_en}</pre>
           <pre className="poem-text poem-ja">{poem.poem_ja}</pre>
