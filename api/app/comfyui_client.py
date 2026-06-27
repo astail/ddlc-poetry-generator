@@ -57,6 +57,22 @@ DEFAULT_WORKFLOW: dict = {
     },
 }
 
+# SDXL variant (#22): same graph, 1024px, dpmpp_2m/karras. CheckpointLoaderSimple
+# loads a single-file SDXL checkpoint. On a 6GB card ComfyUI must run --lowvram
+# (set in comfyui/Dockerfile), which offloads weights between CPU/GPU — slower
+# but it fits.
+SDXL_WORKFLOW: dict = copy.deepcopy(DEFAULT_WORKFLOW)
+SDXL_WORKFLOW["3"]["inputs"]["sampler_name"] = "dpmpp_2m"
+SDXL_WORKFLOW["3"]["inputs"]["scheduler"] = "karras"
+SDXL_WORKFLOW["3"]["inputs"]["steps"] = 30
+SDXL_WORKFLOW["5"]["inputs"]["width"] = 1024
+SDXL_WORKFLOW["5"]["inputs"]["height"] = 1024
+SDXL_WORKFLOW["4"]["inputs"]["ckpt_name"] = "sdxl.safetensors"
+
+
+def workflow_for(model_type: str) -> dict:
+    return SDXL_WORKFLOW if (model_type or "").lower() == "sdxl" else DEFAULT_WORKFLOW
+
 
 class ComfyUIClient:
     def __init__(

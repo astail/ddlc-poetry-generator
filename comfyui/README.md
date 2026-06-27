@@ -35,5 +35,22 @@ KSampler → VAEDecode → SaveImage。
 
 ## GTX 1060 6GB メモ
 - 512×512、SD1.5 で 1枚あたり概ね 5〜15 秒。
-- VRAM が厳しい場合は ComfyUI を `--lowvram`/`--normalvram` で起動（#10 で設定）。
+- VRAM が厳しい場合は ComfyUI を `--lowvram`/`--normalvram` で起動（#10 で設定済）。
 - 実際の起動（ComfyUI サービス）と生成は #10 / #12 で実施します。
+
+## SDXL（任意, #22）
+
+`.env` で `SD_MODEL_TYPE=sdxl` にすると、ワーカーは SDXL 用ワークフロー
+（`workflows/poem_sdxl.json` 相当：1024px・dpmpp_2m/karras・steps 30）を使います。
+
+- モデル取得（単一ファイルの SDXL チェックポイント）:
+  ```bash
+  SD_MODEL_URL=https://.../sdxl_model.safetensors SD_CHECKPOINT=sdxl.safetensors \
+    ./comfyui/download_models.sh
+  ```
+  `.env` の `SD_CHECKPOINT=sdxl.safetensors` に合わせます。
+- **6GB offload**: ComfyUI は `--lowvram` で起動済（重みを CPU/GPU 間でオフロード）。
+  GTX 1060 6GB でも生成できますが SD1.5 より大幅に低速です。`SD_WIDTH/HEIGHT` を
+  768〜1024 に調整して VRAM/速度を加減してください。
+- 生成パイプライン（`ComfyUIClient` / `workflow_for`）は SD1.5 と同一で、ワークフローと
+  解像度のみ切替わります（#12 で実機検証済の経路を再利用）。
