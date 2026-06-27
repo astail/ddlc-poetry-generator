@@ -108,6 +108,26 @@ def test_generate_rejects_unknown_model(client):
     assert "unknown image model" in r.json()["detail"]
 
 
+def test_generate_returns_503_when_at_concurrency_cap(client):
+    import threading
+
+    from app.deps import get_generation_semaphore
+    from app.main import app
+
+    sem = threading.BoundedSemaphore(1)
+    app.dependency_overrides[get_generation_semaphore] = lambda: sem
+
+    # Saturate the single slot (simulating a generation already in flight).
+    assert sem.acquire(blocking=False) is True
+    r = client.post("/api/generate", json={"character": "yuri"})
+    assert r.status_code == 503
+    assert r.headers.get("Retry-After") == "5"
+
+    # Freeing the slot lets the next request through again.
+    sem.release()
+    assert client.post("/api/generate", json={"character": "yuri"}).status_code == 200
+
+
 def test_list_models_endpoint(client):
     body = client.get("/api/models").json()
     assert body["default"] == "anything-v5.safetensors"
