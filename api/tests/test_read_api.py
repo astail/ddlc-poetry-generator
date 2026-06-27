@@ -106,6 +106,18 @@ def test_asset_url_helper():
     assert _asset_url("audio", "/data/audio/5.wav") == "/api/assets/audio/5.wav"
 
 
+def test_list_exposes_asset_urls(client):
+    with client.session_local() as s:
+        poem = Poem(character="yuri", title="t", poem_en="e", poem_ja="j", lang="en")
+        poem.images.append(Image(prompt="p", path="/data/images/g.png", status="done"))
+        poem.audios.append(Audio(lang="en", path="/data/audio/g.wav", status="done"))
+        s.add(poem)
+        s.commit()
+    item = client.get("/api/poems").json()[0]
+    assert item["image_url"] == "/api/assets/images/g.png"
+    assert item["audio_url"] == "/api/assets/audio/g.wav"
+
+
 def test_detail_exposes_image_url(client):
     with client.session_local() as s:
         poem = Poem(character="yuri", title="t", poem_en="e", poem_ja="j", lang="en")

@@ -68,6 +68,8 @@ class PoemSummary(BaseModel):
     created_at: datetime
     image_status: Optional[str]
     audio_status: Optional[str]
+    image_url: Optional[str] = None
+    audio_url: Optional[str] = None
 
 
 class PoemDetail(PoemSummary):
@@ -89,6 +91,8 @@ def _summary(poem: Poem) -> PoemSummary:
         created_at=poem.created_at,
         image_status=poem.images[0].status if poem.images else None,
         audio_status=poem.audios[0].status if poem.audios else None,
+        image_url=_asset_url("images", poem.images[0].path) if poem.images else None,
+        audio_url=_asset_url("audio", poem.audios[0].path) if poem.audios else None,
     )
 
 
