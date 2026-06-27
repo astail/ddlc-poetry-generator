@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install api (pinned runtime + dev deps)
@@ -73,7 +73,7 @@ jobs:
       - name: npm audit (frontend)
         # Reads the committed package-lock.json directly (no install needed).
         run: cd frontend && npm audit --audit-level=high || true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: pip-audit (api)
