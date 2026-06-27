@@ -93,3 +93,35 @@ def test_theme_too_long_is_422(client):
         "/api/generate", json={"character": "monika", "theme": "x" * 500}
     )
     assert r.status_code == 422
+
+
+def test_rate_limit_returns_429(client):
+    from app.deps import get_rate_limiter
+    from app.main import app
+    from app.ratelimit import RateLimiter
+
+    limiter = RateLimiter(2, 60)
+    app.dependency_overrides[get_rate_limiter] = lambda: limiter
+    body = {"character": "yuri", "theme": "x"}
+    assert client.post("/api/generate", json=body).status_code == 200
+    assert client.post("/api/generate", json=body).status_code == 200
+    r = client.post("/api/generate", json=body)
+    assert r.status_code == 429
+    assert "retry-after" in {k.lower() for k in r.headers}
+
+
+def test_generation_error_returns_502(client):
+    from app.claude_client import PoemGenerationError
+    from app.deps import get_generator
+    from app.main import app
+
+    class _Boom:
+        config = SimpleNamespace(model="m")
+
+        def generate(self, character, theme=None):
+            raise PoemGenerationError("claude down")
+
+    app.dependency_overrides[get_generator] = _Boom
+    r = client.post("/api/generate", json={"character": "monika"})
+    assert r.status_code == 502
+    assert "failed" in r.json()["detail"]

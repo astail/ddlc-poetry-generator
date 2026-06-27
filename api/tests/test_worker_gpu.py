@@ -27,11 +27,21 @@ def _seed(sf):
 class FakeRedis:
     def __init__(self, items):
         self.items = list(items)
+        self.counters = {}
+        self.pushed = []
 
     def blpop(self, keys, timeout=0):
         if self.items:
             return (keys[0].encode(), str(self.items.pop(0)).encode())
         return None
+
+    def incr(self, key):
+        self.counters[key] = self.counters.get(key, 0) + 1
+        return self.counters[key]
+
+    def rpush(self, key, value):
+        self.pushed.append((key, value))
+        self.items.append(value)
 
 
 def test_process_success_sets_paths_and_status():
@@ -53,19 +63,40 @@ def test_process_success_sets_paths_and_status():
     assert calls == [image_id]
 
 
-def test_process_failure_records_error():
+def test_process_failure_dead_letters_without_retries():
     sf = _factory()
     job_id, image_id = _seed(sf)
 
     def proc(image):
         raise RuntimeError("boom")
 
-    ImageWorker(sf, FakeRedis([]), proc).process(job_id)
+    ImageWorker(sf, FakeRedis([]), proc, max_retries=0).process(job_id)
 
     with sf() as s:
         job = s.get(Job, job_id)
         assert job.status == JobStatus.FAILED
         assert "boom" in job.error
+        assert s.get(Image, image_id).status == AssetStatus.FAILED
+
+
+def test_failure_retries_then_dead_letters():
+    sf = _factory()
+    job_id, image_id = _seed(sf)
+    redis = FakeRedis([])
+
+    def proc(image):
+        raise RuntimeError("boom")
+
+    worker = ImageWorker(sf, redis, proc, max_retries=1)
+
+    worker.process(job_id)  # 1st failure -> re-enqueued
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.QUEUED
+    assert redis.pushed == [("jobs:image", job_id)]
+
+    worker.process(job_id)  # 2nd failure -> dead-letter
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.FAILED
         assert s.get(Image, image_id).status == AssetStatus.FAILED
 
 

@@ -16,6 +16,7 @@ from typing import Callable, Optional
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Audio, Job, JobStatus
 from .queue import queue_key
+from .worker_common import handle_job_failure
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,13 @@ class AudioWorker:
         redis_client,
         synthesizer: Synthesizer,
         block_timeout: int = 5,
+        max_retries: int = 1,
     ):
         self._session_factory = session_factory
         self._redis = redis_client
         self._synthesizer = synthesizer
         self._block_timeout = block_timeout
+        self._max_retries = max_retries
 
     def run_once(self) -> bool:
         popped = self._redis.blpop([queue_key("audio")], timeout=self._block_timeout)
@@ -81,9 +84,10 @@ class AudioWorker:
                 job.status = JobStatus.DONE
                 job.error = None
             except Exception as exc:  # noqa: BLE001
-                audio.status = AssetStatus.FAILED
-                job.status = JobStatus.FAILED
-                job.error = str(exc)[:500]
+                handle_job_failure(
+                    self._redis, job, audio, exc,
+                    job_type="audio", max_retries=self._max_retries,
+                )
                 logger.exception("audio job %s failed", job_id)
             session.commit()
 
@@ -111,7 +115,12 @@ def build_worker(synthesizer: Optional[Synthesizer] = None) -> AudioWorker:
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
     client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
-    return AudioWorker(session_factory, client, synthesizer or _default_synthesizer())
+    return AudioWorker(
+        session_factory,
+        client,
+        synthesizer or _default_synthesizer(),
+        max_retries=int(os.environ.get("JOB_MAX_RETRIES", "1")),
+    )
 
 
 def main() -> None:

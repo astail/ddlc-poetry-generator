@@ -7,21 +7,50 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .assets import resolve_under
 from .characters import Character
-from .claude_client import PoemGenerator
-from .deps import get_data_dir, get_generator, get_queue, get_session
+from .claude_client import PoemGenerationError, PoemGenerator
+from .deps import (
+    get_data_dir,
+    get_generator,
+    get_queue,
+    get_rate_limiter,
+    get_session,
+)
 from .models import Poem
 from .queue import JobQueue
+from .ratelimit import RateLimiter
 from .repository import get_poem, get_poems
 from .service import GenerationService
 
 app = FastAPI(title="DDLC Poetry Generator API")
+
+
+def enforce_rate_limit(
+    request: Request,
+    limiter: RateLimiter = Depends(get_rate_limiter),
+) -> None:
+    key = request.client.host if request.client else "anon"
+    allowed, retry_after = limiter.check(key)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="rate limit exceeded, please slow down",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+@app.exception_handler(PoemGenerationError)
+async def _poem_generation_error(request: Request, exc: PoemGenerationError):
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "poem generation failed; please try again"},
+    )
 
 
 # ---------------------------------------------------------------- request models
@@ -136,7 +165,11 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/api/generate", response_model=PoemDetail)
+@app.post(
+    "/api/generate",
+    response_model=PoemDetail,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 def generate(
     req: GenerateRequest,
     session: Session = Depends(get_session),
