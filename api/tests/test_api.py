@@ -123,3 +123,32 @@ def test_generation_error_returns_502(client):
     r = client.post("/api/generate", json={"character": "monika"})
     assert r.status_code == 502
     assert "failed" in r.json()["detail"]
+
+
+def test_stats_counts(client):
+    client.post("/api/generate", json={"character": "yuri"})
+    client.post("/api/generate", json={"character": "yuri"})
+    client.post("/api/generate", json={"character": "monika"})
+    s = client.get("/api/stats").json()
+    assert s["total_poems"] == 3
+    assert s["by_character"]["yuri"] == 2
+    assert s["by_character"]["monika"] == 1
+
+
+def test_api_key_required_when_configured(client):
+    from app.deps import get_api_auth_token
+    from app.main import app
+
+    app.dependency_overrides[get_api_auth_token] = lambda: "secret"
+    body = {"character": "sayori"}
+    assert client.post("/api/generate", json=body).status_code == 401
+    assert (
+        client.post("/api/generate", json=body, headers={"X-API-Key": "wrong"}).status_code == 401
+    )
+    assert (
+        client.post("/api/generate", json=body, headers={"X-API-Key": "secret"}).status_code == 200
+    )
+
+
+def test_open_when_no_token_configured(client):
+    assert client.post("/api/generate", json={"character": "natsuki"}).status_code == 200
