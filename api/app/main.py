@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hmac
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +21,7 @@ from .claude_client import PoemGenerationError, PoemGenerator
 from .deps import (
     get_api_auth_token,
     get_data_dir,
+    get_generation_semaphore,
     get_generator,
     get_queue,
     get_rate_limiter,
@@ -94,6 +96,24 @@ def require_api_key(
     # header would otherwise raise (500) instead of cleanly failing auth.
     if token and not hmac.compare_digest((x_api_key or "").encode(), token.encode()):
         raise HTTPException(status_code=401, detail="invalid or missing API key")
+
+
+def enforce_generation_limit(
+    semaphore: threading.BoundedSemaphore = Depends(get_generation_semaphore),
+) -> Iterator[None]:
+    # Bound concurrent generations so slow synchronous Claude calls can't
+    # exhaust the threadpool (#59). Over the cap -> fast 503 instead of piling up
+    # and starving reads. The slot is released after the response is sent.
+    if not semaphore.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="server is busy generating; please retry shortly",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        yield
+    finally:
+        semaphore.release()
 
 
 @app.exception_handler(PoemGenerationError)
@@ -237,7 +257,11 @@ def stats(session: Session = Depends(get_session)) -> dict:
 @app.post(
     "/api/generate",
     response_model=PoemDetail,
-    dependencies=[Depends(enforce_rate_limit), Depends(require_api_key)],
+    dependencies=[
+        Depends(enforce_rate_limit),
+        Depends(require_api_key),
+        Depends(enforce_generation_limit),
+    ],
 )
 def generate(
     req: GenerateRequest,
