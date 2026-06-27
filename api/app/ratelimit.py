@@ -1,15 +1,36 @@
-"""Simple in-memory sliding-window rate limiter (issue #20)."""
+"""Simple in-memory sliding-window rate limiter (issue #20).
+
+Scope / limitations (see #57): state is per-process and in-memory, so the
+effective limit across multiple uvicorn workers / replicas is roughly
+``max_requests * process_count``. For a shared, replica-consistent limit a
+Redis-backed limiter (fixed window ``INCR``+``EXPIRE``) would be needed. The
+key is whatever the caller passes (the API uses ``request.client.host``); behind
+a reverse proxy run uvicorn with ``--proxy-headers``/``--forwarded-allow-ips``
+so that resolves to the real client rather than the gateway IP.
+
+Memory is bounded: expired buckets are reclaimed and the number of tracked keys
+is capped (``max_keys``) so a flood of distinct keys can't grow the map without
+limit (memory-exhaustion DoS).
+"""
 
 from __future__ import annotations
 
 import threading
 import time
 
+DEFAULT_MAX_KEYS = 10_000
+
 
 class RateLimiter:
-    def __init__(self, max_requests: int, window_seconds: float):
+    def __init__(
+        self,
+        max_requests: int,
+        window_seconds: float,
+        max_keys: int = DEFAULT_MAX_KEYS,
+    ):
         self.max = max_requests
         self.window = window_seconds
+        self.max_keys = max_keys
         self._hits: dict[str, list[float]] = {}
         self._lock = threading.Lock()
 
@@ -24,4 +45,25 @@ class RateLimiter:
                 return False, retry_after
             hits.append(now)
             self._hits[key] = hits
+            if len(self._hits) > self.max_keys:
+                self._evict(now)
             return True, 0
+
+    def _evict(self, now: float) -> None:
+        """Bound memory: drop expired buckets, then oldest active ones if needed.
+
+        Called only when the key count exceeds ``max_keys``. First reclaim
+        buckets whose newest hit has aged out of the window (cheap, no behaviour
+        change for live clients). If still over the cap — i.e. genuinely many
+        *active* keys, e.g. a distinct-IP flood — drop those closest to expiry
+        (oldest last-hit) until under the cap. The just-inserted key carries a
+        ``now`` timestamp, so it is never the one evicted.
+        """
+        expired = [k for k, v in self._hits.items() if not v or now - v[-1] >= self.window]
+        for k in expired:
+            del self._hits[k]
+        overflow = len(self._hits) - self.max_keys
+        if overflow > 0:
+            oldest = sorted(self._hits.items(), key=lambda kv: kv[1][-1])[:overflow]
+            for k, _ in oldest:
+                del self._hits[k]
