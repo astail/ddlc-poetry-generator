@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -30,6 +31,36 @@ from .repository import get_poem, get_poems, get_stats
 from .service import GenerationService
 
 app = FastAPI(title="DDLC Poetry Generator API")
+
+# Browser calls come from the frontend on a different origin (port 3000 vs the
+# API's 8000, and often a LAN IP rather than localhost), so the app must answer
+# CORS preflights or fetch() is blocked. Operators can pin exact origins via
+# CORS_ALLOW_ORIGINS (comma-separated; "*" opts into wildcard). When unset, we
+# allow loopback plus private-LAN (RFC1918) origins via regex — enough for
+# self-hosting on a LAN, but not the public internet, so a malicious external
+# site can't read the API from a victim's browser. Credentials stay off (the
+# optional auth is the X-API-Key header, not cookies).
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
+    if o.strip()
+]
+_PRIVATE_ORIGIN_RE = (
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|\[::1\]|"
+    r"10(\.\d{1,3}){3}|"
+    r"192\.168(\.\d{1,3}){2}|"
+    r"172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}"
+    r")(:\d+)?$"
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_origin_regex=None if _cors_origins else _PRIVATE_ORIGIN_RE,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 def enforce_rate_limit(
