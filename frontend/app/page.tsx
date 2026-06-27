@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 const CHARACTERS = ["sayori", "natsuki", "yuri", "monika"] as const;
 
-type Asset = { id: number; status: string; url: string | null };
+type Asset = { id: number; status: string; url: string | null; lang?: string };
 
 type Poem = {
   id: number;
@@ -28,21 +28,21 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
+  const [audioLang, setAudioLang] = useState<string | null>(null);
 
   async function generate(e?: React.FormEvent) {
     e?.preventDefault();
     setLoading(true);
     setError(null);
     setPoem(null);
+    setAudioLang(null);
     try {
       const res = await fetch(`${API_BASE}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ character, theme: theme || null, lang }),
       });
-      if (!res.ok) {
-        throw new Error(`API error ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`API error ${res.status}`);
       setPoem((await res.json()) as Poem);
     } catch (err) {
       setError(err instanceof Error ? err.message : "request failed");
@@ -51,23 +51,33 @@ export default function Home() {
     }
   }
 
-  // Poll for the image until it is ready (or failed).
+  // Poll until both the image and the audio are ready (or failed).
   useEffect(() => {
     if (!poem) return;
-    const img = poem.images?.[0];
-    if (!img || TERMINAL.has(img.status)) return;
+    const pending = [...poem.images, ...poem.audios].some(
+      (a) => !TERMINAL.has(a.status),
+    );
+    if (!pending) return;
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`${API_BASE}/api/poems/${poem.id}`);
         if (res.ok) setPoem((await res.json()) as Poem);
       } catch {
-        /* keep the previous state; will retry on next tick */
+        /* keep state; retry next tick */
       }
     }, 2000);
     return () => clearTimeout(timer);
   }, [poem]);
 
   const image = poem?.images?.[0];
+
+  const audioLangs = useMemo(
+    () => Array.from(new Set((poem?.audios ?? []).map((a) => a.lang ?? "en"))),
+    [poem],
+  );
+  const selectedAudio =
+    (poem?.audios ?? []).find((a) => (a.lang ?? "en") === audioLang) ??
+    poem?.audios?.[0];
 
   return (
     <main className="container">
@@ -123,11 +133,7 @@ export default function Home() {
 
           <div className="image-area" data-testid="image-area">
             {image?.status === "done" && image.url ? (
-              <img
-                src={`${API_BASE}${image.url}`}
-                alt={poem.title}
-                className="poem-image"
-              />
+              <img src={`${API_BASE}${image.url}`} alt={poem.title} className="poem-image" />
             ) : image?.status === "failed" ? (
               <div className="img-failed">
                 画像生成に失敗しました
@@ -137,6 +143,36 @@ export default function Home() {
               </div>
             ) : (
               <div className="img-pending">画像を生成中… ({image?.status ?? "queued"})</div>
+            )}
+          </div>
+
+          <div className="audio-area" data-testid="audio-area">
+            {audioLangs.length > 1 && (
+              <div className="audio-langs">
+                {audioLangs.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    className={l === (audioLang ?? audioLangs[0]) ? "active" : ""}
+                    onClick={() => setAudioLang(l)}
+                  >
+                    {l.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedAudio?.status === "done" && selectedAudio.url ? (
+              <audio
+                controls
+                data-testid="audio-player"
+                src={`${API_BASE}${selectedAudio.url}`}
+              />
+            ) : selectedAudio?.status === "failed" ? (
+              <div className="audio-failed">音声生成に失敗しました</div>
+            ) : (
+              <div className="audio-pending">
+                音声を生成中… ({selectedAudio?.status ?? "queued"})
+              </div>
             )}
           </div>
 
