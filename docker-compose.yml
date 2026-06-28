@@ -112,13 +112,16 @@ services:
 
   voicevox:
     # Japanese TTS engine (anime-style voices) used for lang=ja audio (#89).
-    # Opt-in (kept out of the default lightweight stack): enable with
-    #   docker compose --profile voicevox up -d
-    # and set VOICEVOX_URL=http://voicevox:50021 in .env so worker-tts routes ja
-    # jobs here. CPU image by default; for the GPU build use the nemo-* tag and
+    # Part of the default stack: `docker compose up` starts it so Japanese audio
+    # works out of the box. worker-tts routes ja jobs here via VOICEVOX_URL,
+    # which defaults to http://voicevox:50021 in .env / .env.example. Like
+    # worker-gpu → comfyui, worker-tts connects lazily per job, so no startup
+    # dependency or healthcheck is needed and English audio is never blocked on
+    # it. To run without Japanese audio: `docker compose up --scale voicevox=0`
+    # (and clear VOICEVOX_URL) — the UI then disables ja audio instead of
+    # failing. CPU image by default; for the GPU build use the nemo-* tag and
     # add a `deploy` GPU reservation like comfyui's below.
     image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
-    profiles: ["voicevox"]
     # Not published to the host: only worker-tts needs it, over the internal
     # network as `voicevox:50021`.
     networks: [internal]
