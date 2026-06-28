@@ -1,8 +1,32 @@
 import wave
 
+import pytest
+
 from app.models import Audio, Poem
 from app.tts import PiperSynthesizer
-from app.voices import get_voice_profile
+from app.voices import UnsupportedLanguageError, get_voice_profile
+
+
+def test_japanese_raises_on_piper_backend():
+    # Piper (CPU) has no Japanese voice; it must error (with guidance) rather
+    # than synthesize ja text with an English voice and garble it (#47/#50).
+    with pytest.raises(UnsupportedLanguageError, match="xtts"):
+        get_voice_profile("yuri", "ja")
+
+
+def test_english_still_resolves():
+    assert get_voice_profile("yuri", "en").voice
+    assert get_voice_profile("yuri").voice  # default lang=en
+
+
+def test_piper_synthesizer_rejects_japanese(tmp_path):
+    synth = PiperSynthesizer(data_dir=tmp_path)
+    poem = Poem(character="yuri", title="t", poem_en="hi", poem_ja="やあ")
+    audio = Audio(lang="ja")
+    poem.audios.append(audio)
+    audio.id = 3
+    with pytest.raises(UnsupportedLanguageError):
+        synth(audio, "やあ")
 
 
 def test_profiles_are_distinct_per_character():

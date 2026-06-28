@@ -49,3 +49,27 @@ def test_xtts_call_uses_speaker_and_lang(tmp_path):
         "speaker": "Daisy Studious",
         "language": "en",
     }
+
+
+def test_xtts_supports_japanese(tmp_path):
+    # XTTS is multilingual: ja text is synthesized with language="ja" (#50).
+    xs = XttsSynthesizer(data_dir=tmp_path)
+    captured = {}
+
+    class FakeTTS:
+        def tts_to_file(self, text, file_path, speaker, language):
+            captured.update(text=text, language=language)
+            with wave.open(file_path, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(22050)
+                w.writeframes(b"\x00\x00" * 50)
+
+    xs._tts = FakeTTS()
+    poem = Poem(character="yuri", title="t", poem_en="hi", poem_ja="やあ")
+    audio = Audio(lang="ja")
+    poem.audios.append(audio)
+    audio.id = 9
+    xs(audio, "やあ")
+    assert captured["language"] == "ja"
+    assert captured["text"] == "やあ"

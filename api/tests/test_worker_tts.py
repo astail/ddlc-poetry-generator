@@ -125,6 +125,26 @@ def test_failure_dead_letters_without_retries():
         assert s.get(Audio, audio_id).status == AssetStatus.FAILED
 
 
+def test_unsupported_language_fails_fast_without_retry():
+    from app.voices import UnsupportedLanguageError
+
+    sf = _factory()
+    job_id, audio_id = _seed(sf, lang="ja")
+    redis = FakeRedis()
+
+    def synth(audio, text):
+        raise UnsupportedLanguageError("set TTS_BACKEND=xtts for Japanese")
+
+    # max_retries=1, but an unsupported-language error must NOT be re-enqueued.
+    worker = AudioWorker(sf, redis, synth, max_retries=1)
+    assert worker.process(job_id) is False  # no re-enqueue
+    assert redis.pushed == []
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.FAILED
+        assert "xtts" in s.get(Job, job_id).error
+        assert s.get(Audio, audio_id).status == AssetStatus.FAILED
+
+
 def test_failure_retries_then_dead_letters():
     sf = _factory()
     job_id, _ = _seed(sf)
