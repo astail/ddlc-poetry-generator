@@ -16,6 +16,7 @@ from typing import Callable, Optional
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Audio, Job, JobStatus
 from .queue import queue_key
+from .voices import UnsupportedLanguageError
 from .worker_common import ack, handle_job_failure, reap_stuck, reliable_pop
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,14 @@ class AudioWorker:
                 audio.status = AssetStatus.DONE
                 job.status = JobStatus.DONE
                 job.error = None
+            except UnsupportedLanguageError as exc:
+                # Deterministic config error (e.g. ja on the Piper backend): no
+                # point retrying — fail immediately with actionable guidance
+                # instead of garbling the audio with the wrong-language voice.
+                job.status = JobStatus.FAILED
+                audio.status = AssetStatus.FAILED
+                job.error = str(exc)[:500]
+                logger.warning("audio job %s unsupported language: %s", job_id, exc)
             except Exception as exc:  # noqa: BLE001
                 requeue = handle_job_failure(
                     self._redis,

@@ -15,6 +15,15 @@ from dataclasses import dataclass
 _EN_VOICE = "en_US-amy-low"
 
 
+class UnsupportedLanguageError(ValueError):
+    """Raised when the Piper (CPU) backend has no voice for the requested language."""
+
+
+# Languages the Piper (CPU) backend can synthesize. Piper ships only English
+# voices here; Japanese is served by the XTTS backend instead (#50).
+PIPER_LANGS = {"en"}
+
+
 @dataclass(frozen=True)
 class VoiceProfile:
     voice: str
@@ -34,5 +43,15 @@ _FALLBACK = VoiceProfile(_EN_VOICE, length_scale=1.0, noise_scale=0.667)
 
 
 def get_voice_profile(character: str | None, lang: str = "en") -> VoiceProfile:
-    """Return the voice profile for a character (lang reserved for ja voices)."""
+    """Return the Piper voice profile for a character + language.
+
+    Piper (CPU) has only English voices, so a non-English ``lang`` raises
+    ``UnsupportedLanguageError`` instead of silently synthesizing the text with
+    an English voice (which produced garbled output for Japanese, #47/#50).
+    Japanese is supported via the XTTS backend (TTS_BACKEND=xtts).
+    """
+    if lang and lang.lower() not in PIPER_LANGS:
+        raise UnsupportedLanguageError(
+            f"Piper (CPU) TTS has no '{lang}' voice; set TTS_BACKEND=xtts for Japanese (#50)"
+        )
     return _PROFILES.get((character or "").lower(), _FALLBACK)
