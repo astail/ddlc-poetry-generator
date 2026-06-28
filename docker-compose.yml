@@ -44,6 +44,22 @@ services:
     networks: [internal]
     restart: "no"
 
+  # One-shot: make the shared `data` volume writable by the unprivileged uid the
+  # app/worker/comfyui containers run as (10001). Docker initialises a named
+  # volume root-owned, and a volume left over from an older root-running image
+  # stays root-owned — either way the non-root services then fail to write
+  # generated assets ([Errno 13] Permission denied on /data/audio/*.wav,
+  # /data/images/*). Runs as root, fixes ownership, exits; dependents wait via
+  # service_completed_successfully. Mirrors the one-shot `migrate` pattern so the
+  # app images keep their non-root start (#55).
+  data-init:
+    image: busybox:stable
+    command: ["sh", "-c", "mkdir -p /data/audio /data/images && chown -R 10001:10001 /data"]
+    volumes:
+      - data:/data
+    networks: [internal]
+    restart: "no"
+
   api:
     build: ./api
     ports:
@@ -58,6 +74,8 @@ services:
       redis:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      data-init:
         condition: service_completed_successfully
     # api straddles both networks: reachable by the browser via the published
     # port and by the frontend (edge), and able to reach db/redis (internal).
@@ -80,6 +98,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      data-init:
+        condition: service_completed_successfully
     networks: [internal]
     restart: unless-stopped
 
@@ -99,6 +119,8 @@ services:
       db:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      data-init:
         condition: service_completed_successfully
     networks: [internal]
     restart: unless-stopped
@@ -142,6 +164,9 @@ services:
     volumes:
       - ./models/comfyui:/models   # place SD checkpoints / VAE / loras here
       - data:/data
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
     networks: [internal]
     restart: unless-stopped
     deploy:
