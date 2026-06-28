@@ -2,18 +2,50 @@ import wave
 
 from app.models import Audio, Poem
 from app.tts import PiperSynthesizer
+from app.tts_voicevox import VoicevoxSynthesizer
 from app.tts_xtts import XttsSynthesizer
-from app.worker_tts import _default_synthesizer
+from app.worker_tts import RoutingSynthesizer, _default_synthesizer
 
 
 def test_default_backend_is_piper(monkeypatch):
     monkeypatch.delenv("TTS_BACKEND", raising=False)
+    monkeypatch.delenv("VOICEVOX_URL", raising=False)
     assert isinstance(_default_synthesizer(), PiperSynthesizer)
 
 
 def test_xtts_backend_selected(monkeypatch):
     monkeypatch.setenv("TTS_BACKEND", "xtts")
+    monkeypatch.delenv("VOICEVOX_URL", raising=False)
     assert isinstance(_default_synthesizer(), XttsSynthesizer)
+
+
+def test_voicevox_routes_japanese(monkeypatch, tmp_path):
+    # With VOICEVOX_URL set, ja jobs route to VOICEVOX while en stays on the
+    # base (Piper) backend (#89).
+    monkeypatch.delenv("TTS_BACKEND", raising=False)
+    monkeypatch.setenv("VOICEVOX_URL", "http://voicevox:50021")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    synth = _default_synthesizer()
+    assert isinstance(synth, RoutingSynthesizer)
+    assert isinstance(synth._by_lang["ja"], VoicevoxSynthesizer)
+    assert isinstance(synth._default, PiperSynthesizer)
+
+
+def test_routing_dispatches_by_language():
+    calls: dict[str, str] = {}
+
+    def en_synth(audio, text):
+        calls["en"] = text
+        return "en.wav"
+
+    def ja_synth(audio, text):
+        calls["ja"] = text
+        return "ja.wav"
+
+    r = RoutingSynthesizer(en_synth, {"ja": ja_synth})
+    assert r(Audio(lang="ja"), "やあ") == "ja.wav"
+    assert r(Audio(lang="en"), "hi") == "en.wav"
+    assert r(Audio(lang=None), "x") == "en.wav"  # unknown lang -> default
 
 
 def test_xtts_speaker_mapping():

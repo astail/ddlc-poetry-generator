@@ -45,6 +45,7 @@ class AssetStatus(StrEnum):
 class TtsBackend(StrEnum):
     PIPER = "piper"
     XTTS = "xtts"
+    VOICEVOX = "voicevox"
 
 
 class Poem(Base):

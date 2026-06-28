@@ -35,6 +35,7 @@ from .queue import JobQueue
 from .ratelimit import RateLimiter
 from .repository import get_poem, get_poems, get_stats
 from .service import GenerationService
+from .voices import supported_audio_langs
 
 app = FastAPI(title="DDLC Poetry Generator API")
 
@@ -297,6 +298,21 @@ def list_models() -> dict:
             {"name": m.name, "label": m.label, "type": m.type} for m in image_model_catalog()
         ],
     }
+
+
+@app.get("/api/tts/capabilities")
+def tts_capabilities() -> dict:
+    """TTS backend and the languages it can synthesize (#89).
+
+    The frontend uses this to disable "音声を生成" for a language the active
+    config can't voice (e.g. ja when VOICEVOX is not configured), so the user is
+    told up front instead of getting a failed/garbled audio job. Japanese is
+    available when VOICEVOX is wired up (``VOICEVOX_URL``).
+    """
+    backend = os.environ.get("TTS_BACKEND", "piper").lower()
+    voicevox = bool(os.environ.get("VOICEVOX_URL"))
+    langs = supported_audio_langs(backend, voicevox_enabled=voicevox)
+    return {"backend": backend, "voicevox": voicevox, "langs": sorted(langs)}
 
 
 @app.get("/api/poems", response_model=list[PoemSummary])

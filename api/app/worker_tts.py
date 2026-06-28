@@ -29,6 +29,24 @@ def _text_for(audio: Audio) -> str:
     return poem.poem_ja if audio.lang == "ja" else poem.poem_en
 
 
+class RoutingSynthesizer:
+    """Dispatch synthesis to a per-language backend (#89).
+
+    English uses the configured Piper/XTTS backend; Japanese uses VOICEVOX when
+    ``VOICEVOX_URL`` is set. A language with no registered backend falls through
+    to ``default`` (Piper), which raises ``UnsupportedLanguageError`` with
+    guidance instead of garbling the text with the wrong-language voice.
+    """
+
+    def __init__(self, default: Synthesizer, by_lang: dict[str, Synthesizer] | None = None):
+        self._default = default
+        self._by_lang = by_lang or {}
+
+    def __call__(self, audio: Audio, text: str) -> str:
+        synth = self._by_lang.get((audio.lang or "en").lower(), self._default)
+        return synth(audio, text)
+
+
 class AudioWorker:
     def __init__(
         self,
@@ -127,10 +145,7 @@ class AudioWorker:
                 time.sleep(1)
 
 
-def _default_synthesizer() -> Synthesizer:
-    from pathlib import Path
-
-    data_dir = Path(os.environ.get("DATA_DIR", "/data"))
+def _english_synthesizer(data_dir) -> Synthesizer:
     backend = os.environ.get("TTS_BACKEND", "piper").lower()
     if backend == "xtts":
         from .tts_xtts import XttsSynthesizer
@@ -140,6 +155,28 @@ def _default_synthesizer() -> Synthesizer:
     from .tts import PiperSynthesizer
 
     return PiperSynthesizer(data_dir=data_dir)
+
+
+def _default_synthesizer() -> Synthesizer:
+    from pathlib import Path
+
+    data_dir = Path(os.environ.get("DATA_DIR", "/data"))
+    base = _english_synthesizer(data_dir)
+
+    # Japanese is voiced by VOICEVOX when configured; route ja jobs to it and
+    # leave everything else on the base (Piper/XTTS) backend (#89). With no
+    # VOICEVOX_URL there is nothing to route, so keep the base synthesizer as-is
+    # (a bare PiperSynthesizer/XttsSynthesizer, preserving prior behavior).
+    by_lang: dict[str, Synthesizer] = {}
+    voicevox_url = os.environ.get("VOICEVOX_URL")
+    if voicevox_url:
+        from .tts_voicevox import VoicevoxSynthesizer
+
+        by_lang["ja"] = VoicevoxSynthesizer(data_dir=data_dir, base_url=voicevox_url)
+
+    if not by_lang:
+        return base
+    return RoutingSynthesizer(base, by_lang)
 
 
 def build_worker(synthesizer: Optional[Synthesizer] = None) -> AudioWorker:
