@@ -305,11 +305,14 @@ def tts_capabilities() -> dict:
     """TTS backend and the languages it can synthesize (#89).
 
     The frontend uses this to disable "音声を生成" for a language the active
-    backend can't voice (e.g. ja on the default Piper/CPU backend), so the user
-    is told up front instead of getting a failed/garbled audio job.
+    config can't voice (e.g. ja when VOICEVOX is not configured), so the user is
+    told up front instead of getting a failed/garbled audio job. Japanese is
+    available when VOICEVOX is wired up (``VOICEVOX_URL``).
     """
     backend = os.environ.get("TTS_BACKEND", "piper").lower()
-    return {"backend": backend, "langs": sorted(supported_audio_langs(backend))}
+    voicevox = bool(os.environ.get("VOICEVOX_URL"))
+    langs = supported_audio_langs(backend, voicevox_enabled=voicevox)
+    return {"backend": backend, "voicevox": voicevox, "langs": sorted(langs)}
 
 
 @app.get("/api/poems", response_model=list[PoemSummary])

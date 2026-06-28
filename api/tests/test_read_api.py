@@ -137,17 +137,31 @@ def test_asset_serving(client, tmp_path):
 
 
 def test_tts_capabilities_default_piper(client, monkeypatch):
-    # With the default Piper backend, ja is not voiceable (#89).
+    # Default Piper backend without VOICEVOX: ja is not voiceable (#89).
     monkeypatch.delenv("TTS_BACKEND", raising=False)
+    monkeypatch.delenv("VOICEVOX_URL", raising=False)
     r = client.get("/api/tts/capabilities")
     assert r.status_code == 200
     body = r.json()
     assert body["backend"] == "piper"
+    assert body["voicevox"] is False
     assert body["langs"] == ["en"]
+
+
+def test_tts_capabilities_voicevox_enables_ja(client, monkeypatch):
+    # Wiring up VOICEVOX makes Japanese audio available on any base backend.
+    monkeypatch.delenv("TTS_BACKEND", raising=False)
+    monkeypatch.setenv("VOICEVOX_URL", "http://voicevox:50021")
+    r = client.get("/api/tts/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["voicevox"] is True
+    assert set(body["langs"]) == {"en", "ja"}
 
 
 def test_tts_capabilities_xtts_enables_ja(client, monkeypatch):
     monkeypatch.setenv("TTS_BACKEND", "xtts")
+    monkeypatch.delenv("VOICEVOX_URL", raising=False)
     r = client.get("/api/tts/capabilities")
     assert r.status_code == 200
     body = r.json()

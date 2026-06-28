@@ -110,6 +110,20 @@ services:
     #           count: 1
     #           capabilities: [gpu]
 
+  voicevox:
+    # Japanese TTS engine (anime-style voices) used for lang=ja audio (#89).
+    # Opt-in (kept out of the default lightweight stack): enable with
+    #   docker compose --profile voicevox up -d
+    # and set VOICEVOX_URL=http://voicevox:50021 in .env so worker-tts routes ja
+    # jobs here. CPU image by default; for the GPU build use the nemo-* tag and
+    # add a `deploy` GPU reservation like comfyui's below.
+    image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
+    profiles: ["voicevox"]
+    # Not published to the host: only worker-tts needs it, over the internal
+    # network as `voicevox:50021`.
+    networks: [internal]
+    restart: unless-stopped
+
   comfyui:
     # Stable Diffusion runtime. Holds the GPU. Mount model weights from the host
     # (weights are NOT committed to this repo — see DISCLAIMER.md).

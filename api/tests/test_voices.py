@@ -25,6 +25,12 @@ def test_supported_audio_langs_unknown_backend_falls_back_to_piper():
     assert supported_audio_langs("") == {"en"}
 
 
+def test_supported_audio_langs_voicevox_adds_ja():
+    # VOICEVOX voices Japanese regardless of the (English) base backend (#89).
+    assert supported_audio_langs("piper", voicevox_enabled=True) == {"en", "ja"}
+    assert "ja" in supported_audio_langs("xtts", voicevox_enabled=True)
+
+
 def test_japanese_raises_on_piper_backend():
     # Piper (CPU) has no Japanese voice; it must error (with guidance) rather
     # than synthesize ja text with an English voice and garble it (#47/#50).

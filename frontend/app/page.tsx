@@ -195,7 +195,7 @@ export default function Home() {
           {!audioSupported && (
             <p className="audio-unsupported" role="note">
               ※ 選択中の言語（{lang === "ja" ? "日本語" : lang}）の音声生成は、現在のサーバ構成では利用できません。
-              日本語の読み上げには XTTS（GPU）構成が必要です（英語は利用できます）。
+              日本語の読み上げにはサーバ側で VOICEVOX を有効化してください（英語は利用できます）。
             </p>
           )}
         </fieldset>
