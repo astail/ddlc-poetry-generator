@@ -136,6 +136,25 @@ def test_asset_serving(client, tmp_path):
         app.dependency_overrides.pop(get_data_dir, None)
 
 
+def test_tts_capabilities_default_piper(client, monkeypatch):
+    # With the default Piper backend, ja is not voiceable (#89).
+    monkeypatch.delenv("TTS_BACKEND", raising=False)
+    r = client.get("/api/tts/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["backend"] == "piper"
+    assert body["langs"] == ["en"]
+
+
+def test_tts_capabilities_xtts_enables_ja(client, monkeypatch):
+    monkeypatch.setenv("TTS_BACKEND", "xtts")
+    r = client.get("/api/tts/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["backend"] == "xtts"
+    assert set(body["langs"]) == {"en", "ja"}
+
+
 def test_resolve_under_blocks_traversal(tmp_path):
     assert resolve_under(tmp_path, "a/b.txt") is not None
     assert resolve_under(tmp_path, "../etc/passwd") is None

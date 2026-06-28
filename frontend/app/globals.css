@@ -252,6 +252,14 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+/* Note shown when the selected language can't be voiced by the backend (#89). */
+.audio-unsupported {
+  margin: 0.3rem 0 0;
+  color: #8a6d00;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 /* ---- gallery ---- */
 .filters {
   display: flex;

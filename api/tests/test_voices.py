@@ -4,7 +4,25 @@ import pytest
 
 from app.models import Audio, Poem
 from app.tts import PiperSynthesizer
-from app.voices import UnsupportedLanguageError, get_voice_profile
+from app.voices import UnsupportedLanguageError, get_voice_profile, supported_audio_langs
+
+
+def test_supported_audio_langs_piper_excludes_ja():
+    # Default Piper (CPU) backend has no Japanese voice, so ja must NOT be
+    # advertised as voiceable — that's what lets the frontend disable it (#89).
+    langs = supported_audio_langs("piper")
+    assert "en" in langs
+    assert "ja" not in langs
+
+
+def test_supported_audio_langs_xtts_includes_ja():
+    assert supported_audio_langs("xtts") == {"en", "ja"}
+    assert supported_audio_langs("XTTS") == {"en", "ja"}  # case-insensitive
+
+
+def test_supported_audio_langs_unknown_backend_falls_back_to_piper():
+    # An unset/unknown backend resolves to the Piper default (English only).
+    assert supported_audio_langs("") == {"en"}
 
 
 def test_japanese_raises_on_piper_backend():

@@ -23,6 +23,21 @@ class UnsupportedLanguageError(ValueError):
 # voices here; Japanese is served by the XTTS backend instead (#50).
 PIPER_LANGS = {"en"}
 
+# Languages the XTTS (GPU) backend can synthesize that this app actually offers.
+# XTTS v2 is multilingual (16 langs), but poems exist only in en/ja, so we expose
+# just those — enough for the frontend to know ja audio is available (#50, #89).
+XTTS_LANGS = {"en", "ja"}
+
+
+def supported_audio_langs(backend: str) -> set[str]:
+    """Languages the given TTS backend can synthesize.
+
+    Lets the API tell the frontend up front which languages can produce audio,
+    so it can disable the option for unsupported langs instead of enqueuing a
+    job that is bound to fail (e.g. ja on the default Piper backend, #89).
+    """
+    return XTTS_LANGS if (backend or "").lower() == "xtts" else PIPER_LANGS
+
 
 @dataclass(frozen=True)
 class VoiceProfile:

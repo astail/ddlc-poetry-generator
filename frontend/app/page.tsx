@@ -35,6 +35,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
   const [audioLang, setAudioLang] = useState<string | null>(null);
+  // Languages the active TTS backend can voice (#89). Defaults to English only,
+  // matching the default Piper/CPU backend, until the API answers.
+  const [ttsLangs, setTtsLangs] = useState<string[]>(["en"]);
 
   // Load the selectable image models once (#49).
   useEffect(() => {
@@ -49,6 +52,21 @@ export default function Home() {
         /* dropdown just stays empty; the API uses its default */
       });
   }, []);
+
+  // Ask the API which languages can produce audio so we can disable the option
+  // for unsupported ones (e.g. ja on Piper) instead of queuing a doomed job (#89).
+  useEffect(() => {
+    fetch(`${API_BASE}/api/tts/capabilities`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.langs?.length) setTtsLangs(d.langs);
+      })
+      .catch(() => {
+        /* keep the English-only default; ja audio just stays disabled */
+      });
+  }, []);
+
+  const audioSupported = ttsLangs.includes(lang);
 
   async function generate(e?: React.FormEvent) {
     e?.preventDefault();
@@ -65,7 +83,8 @@ export default function Home() {
           theme: theme || null,
           lang,
           generate_image: genImage,
-          generate_audio: genAudio,
+          // Don't request audio in a language the backend can't voice (#89).
+          generate_audio: genAudio && audioSupported,
           model: model || null,
         }),
       });
@@ -167,11 +186,18 @@ export default function Home() {
           <label className="checkbox">
             <input
               type="checkbox"
-              checked={genAudio}
+              checked={genAudio && audioSupported}
+              disabled={!audioSupported}
               onChange={(e) => setGenAudio(e.target.checked)}
             />
             音声を生成
           </label>
+          {!audioSupported && (
+            <p className="audio-unsupported" role="note">
+              ※ 選択中の言語（{lang === "ja" ? "日本語" : lang}）の音声生成は、現在のサーバ構成では利用できません。
+              日本語の読み上げには XTTS（GPU）構成が必要です（英語は利用できます）。
+            </p>
+          )}
         </fieldset>
 
         <button type="submit" disabled={loading}>
