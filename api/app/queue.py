@@ -3,11 +3,31 @@
 from __future__ import annotations
 
 import os
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 def queue_key(job_type: str) -> str:
     return f"jobs:{job_type}"
+
+
+def redis_from_url(url: Optional[str] = None):
+    """Build a Redis client hardened against idle-connection drops.
+
+    Docker's NAT silently drops idle TCP connections, so the worker's long-lived
+    blocking-pop connection would eventually fail the next call with "Timeout
+    reading from socket". When that landed on the ack / retry-bookkeeping path it
+    stranded jobs (RUNNING forever, parked on the processing list). socket
+    keepalive + periodic health checks + retry-on-timeout keep the connection
+    healthy and recover from transient blips.
+    """
+    import redis
+
+    return redis.Redis.from_url(
+        url or os.environ.get("REDIS_URL", "redis://redis:6379/0"),
+        socket_keepalive=True,
+        health_check_interval=30,
+        retry_on_timeout=True,
+    )
 
 
 class JobQueue(Protocol):
@@ -22,10 +42,7 @@ class RedisJobQueue:
 
     @classmethod
     def from_env(cls) -> "RedisJobQueue":
-        import redis
-
-        url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-        return cls(redis.Redis.from_url(url))
+        return cls(redis_from_url())
 
     def enqueue(self, job_type: str, job_id: int) -> None:
         self._client.rpush(queue_key(job_type), job_id)

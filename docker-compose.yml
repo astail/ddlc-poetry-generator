@@ -199,7 +199,12 @@ services:
     image: redis:7-alpine
     # Require a password so a compromised container can't freely read/write the
     # job queue / retry counters. Credentials flow to clients via REDIS_URL.
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (no default; see .env.example)}"]
+    # AOF persistence (+ a named volume) keeps queued/in-flight job ids across a
+    # restart; without it a Redis restart silently orphans DB jobs that the
+    # workers then never see again (they only consume ids from Redis).
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (no default; see .env.example)}", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
     environment:
       # Lets the healthcheck's `redis-cli ping` authenticate without putting the
       # password on the command line (avoids the NOAUTH failure / -a warning).
@@ -223,3 +228,4 @@ networks:
 volumes:
   data:
   pgdata:
+  redis-data:

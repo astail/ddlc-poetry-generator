@@ -94,6 +94,52 @@ def test_processor_assigns_seed_when_missing(tmp_path):
     assert captured["workflow"]["3"]["inputs"]["seed"] == image.seed
 
 
+def test_processor_rerandomizes_seed_each_attempt(tmp_path):
+    # A retry must NOT resubmit the same seed: ComfyUI caches an identical
+    # workflow and returns empty outputs ("no image"), so a fresh seed is picked
+    # every attempt even when the image already carries one.
+    captured = {}
+    client = _make_client(tmp_path, captured)
+    processor = make_comfyui_processor(client, checkpoint="m.safetensors")
+    image = Image(prompt="p", negative="", seed=999, width=512, height=512)
+    processor(image)
+    assert image.seed != 999
+    assert captured["workflow"]["3"]["inputs"]["seed"] == image.seed
+
+
+def test_await_outputs_surfaces_execution_error(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/prompt":
+            return httpx.Response(200, json={"prompt_id": "abc"})
+        if request.url.path == "/history/abc":
+            return httpx.Response(
+                200,
+                json={
+                    "abc": {
+                        "outputs": {},
+                        "status": {
+                            "status_str": "error",
+                            "messages": [
+                                [
+                                    "execution_error",
+                                    {
+                                        "node_type": "KSampler",
+                                        "exception_message": "CUDA out of memory",
+                                    },
+                                ]
+                            ],
+                        },
+                    }
+                },
+            )
+        return httpx.Response(404)
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = ComfyUIClient("http://comfyui:8188", http=http, data_dir=tmp_path, poll_interval=0)
+    with pytest.raises(RuntimeError, match="CUDA out of memory"):
+        client.generate(prompt="p", checkpoint="m.safetensors")
+
+
 def test_processor_records_checkpoint(tmp_path):
     # The checkpoint used must be persisted on the Image for provenance.
     client = _make_client(tmp_path, {})

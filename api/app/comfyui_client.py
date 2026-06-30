@@ -129,7 +129,10 @@ class ComfyUIClient:
         outputs = self._await_outputs(prompt_id)
         images = self._extract_images(outputs)
         if not images:
-            raise RuntimeError("ComfyUI returned no image")
+            raise RuntimeError(
+                f"ComfyUI returned no image for prompt {prompt_id} "
+                "(cached run with empty outputs, or workflow has no SaveImage node)"
+            )
         img = images[0]
         data = self._fetch_view(img)
 
@@ -146,10 +149,33 @@ class ComfyUIClient:
             resp = self._http.get(f"{self._base}/history/{prompt_id}")
             resp.raise_for_status()
             history = resp.json()
-            if prompt_id in history:
-                return history[prompt_id].get("outputs", {})
+            entry = history.get(prompt_id)
+            if entry is not None:
+                self._raise_if_failed(prompt_id, entry.get("status"))
+                return entry.get("outputs", {})
             time.sleep(self._poll_interval)
         raise TimeoutError(f"ComfyUI prompt {prompt_id} did not finish in time")
+
+    @staticmethod
+    def _raise_if_failed(prompt_id: str, status: Optional[dict]) -> None:
+        """Surface a ComfyUI execution error (OOM, missing checkpoint, bad node)
+        with its real reason instead of letting it fall through to the generic
+        "no image" below. ComfyUI records the failure in the history entry's
+        ``status`` (``status_str == "error"`` plus an ``execution_error`` message).
+        """
+        if not isinstance(status, dict) or status.get("status_str") != "error":
+            return
+        detail = None
+        for msg in status.get("messages") or []:
+            if isinstance(msg, (list, tuple)) and len(msg) == 2 and msg[0] == "execution_error":
+                data = msg[1] or {}
+                node = data.get("node_type") or data.get("node_id")
+                exc = data.get("exception_message") or data.get("exception_type")
+                detail = ": ".join(
+                    p for p in (str(node) if node else "", str(exc) if exc else "") if p
+                )
+                break
+        raise RuntimeError(f"ComfyUI prompt {prompt_id} failed: {detail or 'execution error'}")
 
     @staticmethod
     def _extract_images(outputs: dict) -> list[dict]:
@@ -202,8 +228,17 @@ def make_comfyui_processor(
         # would always win and silently render SDXL at 512.
         width = int(resolved_env.get("SD_WIDTH", "1024" if sdxl else "512"))
         height = int(resolved_env.get("SD_HEIGHT", "1024" if sdxl else "512"))
-        if image.seed is None:
-            image.seed = random.randint(0, 2**32 - 1)  # recorded on commit
+        # A fresh seed on every attempt. Re-submitting an identical workflow makes
+        # ComfyUI serve a cached run whose /history outputs are empty ("Prompt
+        # executed in 0.00 seconds"), which we'd misread as "ComfyUI returned no
+        # image". Because a persisted seed is reused on retry, that turned any
+        # transient first-attempt failure into a permanent one. The API never
+        # pins a seed, so randomizing here is safe and makes a retry a real
+        # re-render. The seed actually used is recorded below (#66).
+        # Bounded to a signed 32-bit int: Image.seed is a Postgres INTEGER, so a
+        # value above 2**31-1 raises NumericValueOutOfRange on commit (and 2**31
+        # of seeds is ample to avoid cache collisions).
+        image.seed = random.randint(0, 2**31 - 1)
         image.checkpoint = name  # provenance (#66)
         image.width = width  # record the size actually generated
         image.height = height
