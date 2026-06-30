@@ -152,14 +152,6 @@ export default function Home() {
           />
         </label>
 
-        <label>
-          言語（詩・読み上げ音声）
-          <select value={lang} onChange={(e) => setLang(e.target.value)}>
-            <option value="en">English（英語）</option>
-            <option value="ja">日本語</option>
-          </select>
-        </label>
-
         <fieldset className="assets">
           <legend>生成するもの</legend>
           <label className="checkbox">
@@ -186,15 +178,26 @@ export default function Home() {
           <label className="checkbox">
             <input
               type="checkbox"
-              checked={genAudio && audioSupported}
-              disabled={!audioSupported}
+              checked={genAudio}
               onChange={(e) => setGenAudio(e.target.checked)}
             />
             音声を生成
           </label>
-          {!audioSupported && (
+
+          {genAudio && (
+            <label className="voice-lang-select">
+              音声の言語
+              <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                <option value="en">English（英語）</option>
+                <option value="ja" disabled={!ttsLangs.includes("ja")}>
+                  日本語{ttsLangs.includes("ja") ? "" : "（利用不可）"}
+                </option>
+              </select>
+            </label>
+          )}
+          {genAudio && !ttsLangs.includes("ja") && (
             <p className="audio-unsupported" role="note">
-              ※ 選択中の言語（{lang === "ja" ? "日本語" : lang}）の音声生成は、現在のサーバ構成では利用できません。
+              ※ 日本語の音声生成は、現在のサーバ構成では利用できません。
               日本語の読み上げにはサーバ側で VOICEVOX を有効化してください（英語は利用できます）。
             </p>
           )}
