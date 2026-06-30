@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import logging
 
+from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+
 from .models import AssetStatus, Job, JobStatus
 from .queue import queue_key
 
@@ -21,6 +24,12 @@ logger = logging.getLogger(__name__)
 # How long a retry counter lives before Redis drops it, so the keys don't
 # accumulate forever for ids that never come back.
 RETRY_TTL_SECONDS = 24 * 60 * 60
+
+# How often the worker loop re-runs maintenance (reaping stuck processing-list
+# ids). The startup pass only catches a *previous* worker's leftovers; running it
+# periodically also recovers ids this worker stranded on a mid-job Redis blip
+# without waiting for a restart.
+MAINTENANCE_INTERVAL_SECONDS = 60
 
 
 def processing_key(job_type: str) -> str:
@@ -34,9 +43,18 @@ def reliable_pop(redis_client, job_type: str, timeout: int):
     Returns the raw id (bytes) still parked on the processing list, or None on
     timeout. The caller must ``ack`` it once the job is fully handled.
     """
-    return redis_client.blmove(
-        queue_key(job_type), processing_key(job_type), timeout, "LEFT", "RIGHT"
-    )
+    try:
+        return redis_client.blmove(
+            queue_key(job_type), processing_key(job_type), timeout, "LEFT", "RIGHT"
+        )
+    except RedisTimeoutError:
+        # A socket-read timeout while blocking on an *empty* queue just means
+        # "nothing arrived this window" — redis-py's read deadline races the
+        # server-side block timeout. Treat it as no job rather than spamming the
+        # loop's error handler. An item that was actually moved but whose reply
+        # was lost stays on the processing list and the periodic reaper recovers
+        # it, so nothing is dropped.
+        return None
 
 
 def ack(redis_client, job_type: str, raw) -> None:
@@ -63,6 +81,48 @@ def reap_stuck(redis_client, job_type: str) -> int:
     return recovered
 
 
+def reconcile_orphans(redis_client, session_factory, job_type: str) -> int:
+    """Re-enqueue jobs the DB still has as queued/running but that are gone from
+    Redis. Runs at startup.
+
+    Redis is not the source of truth for *which* jobs exist (the DB is), and the
+    queue can be lost out from under it — a Redis restart with no/late snapshot,
+    or ``docker compose down -v``. When that happens the ids vanish from the
+    lists but the DB rows stay queued/running, so the worker never sees them again
+    and the asset is stuck pending/running forever. This pushes any such id back
+    onto the queue so it gets processed.
+
+    Assumes a single worker per queue type (the default deployment) and that it
+    runs at startup *before* the consume loop: it re-enqueues RUNNING ids too, so
+    calling it while another worker is mid-job could double-process that job.
+    """
+    from sqlalchemy import select
+
+    from .models import Job, JobStatus
+
+    in_redis: set[int] = set()
+    for key in (queue_key(job_type), processing_key(job_type)):
+        for raw in redis_client.lrange(key, 0, -1):
+            try:
+                in_redis.add(int(raw))
+            except (ValueError, TypeError):
+                continue
+
+    recovered = 0
+    with session_factory() as session:
+        stmt = select(Job.id).where(
+            Job.type == job_type,
+            Job.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+        for job_id in session.execute(stmt).scalars():
+            if job_id not in in_redis:
+                redis_client.rpush(queue_key(job_type), job_id)
+                recovered += 1
+    if recovered:
+        logger.warning("reconciled %s orphaned %s job(s) back onto the queue", recovered, job_type)
+    return recovered
+
+
 def handle_job_failure(
     redis_client,
     job: Job,
@@ -78,8 +138,20 @@ def handle_job_failure(
     ``rpush`` *after* committing the status), False if it was dead-lettered.
     Mutates job/asset status only; the caller commits the session.
     """
-    attempts = int(redis_client.incr(f"retry:{job_type}:{job.id}"))
-    redis_client.expire(f"retry:{job_type}:{job.id}", RETRY_TTL_SECONDS)
+    try:
+        attempts = int(redis_client.incr(f"retry:{job_type}:{job.id}"))
+        redis_client.expire(f"retry:{job_type}:{job.id}", RETRY_TTL_SECONDS)
+    except (RedisError, OSError):
+        # Redis is unreachable. We can't track the attempt count, and a
+        # re-enqueue would need Redis too, so dead-letter to a terminal, visible
+        # state. Previously any exception here escaped before the caller's commit,
+        # stranding the job RUNNING on the processing list until the next restart.
+        # (Builtin ConnectionError is an OSError, so test/double failures match.)
+        logger.exception("retry bookkeeping unavailable for %s job %s; failing", job_type, job.id)
+        job.status = JobStatus.FAILED
+        asset.status = AssetStatus.FAILED
+        job.error = f"{exc} [retry tracking unavailable]"[:500]
+        return False
     if attempts <= max_retries:
         job.status = JobStatus.QUEUED
         asset.status = AssetStatus.PENDING

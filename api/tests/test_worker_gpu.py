@@ -69,6 +69,10 @@ class FakeRedis:
     def llen(self, key):
         return len(self._list(key))
 
+    def lrange(self, key, start, end):
+        lst = self._list(key)
+        return lst[start:] if end == -1 else lst[start : end + 1]
+
     def incr(self, key):
         self.counters[key] = self.counters.get(key, 0) + 1
         return self.counters[key]
@@ -213,3 +217,69 @@ def test_run_once_consumes_then_empty():
 def test_missing_job_does_not_crash():
     sf = _factory()
     ImageWorker(sf, FakeRedis([]), lambda i: "x").process(99999)
+
+
+def test_failure_dead_letters_when_redis_bookkeeping_unavailable():
+    # If Redis throws during failure handling we must NOT let the exception
+    # escape uncommitted (which used to strand the job RUNNING on the processing
+    # list); it should fail visibly instead.
+    sf = _factory()
+    job_id, image_id = _seed(sf)
+
+    class BrokenRedis(FakeRedis):
+        def incr(self, key):
+            raise ConnectionError("redis down")
+
+    def proc(image):
+        raise RuntimeError("boom")
+
+    worker = ImageWorker(sf, BrokenRedis(), proc, max_retries=5)
+    assert worker.process(job_id) is False  # no re-enqueue, no exception
+    with sf() as s:
+        assert s.get(Job, job_id).status == JobStatus.FAILED
+        assert s.get(Image, image_id).status == AssetStatus.FAILED
+
+
+def test_reconcile_requeues_db_jobs_missing_from_redis():
+    from app.worker_common import reconcile_orphans
+
+    sf = _factory()
+    present_id, _ = _seed(sf)
+    orphan_id, _ = _seed(sf)
+    # Mark both as live in the DB; only `present_id` is still on the Redis queue.
+    with sf() as s:
+        s.get(Job, present_id).status = JobStatus.QUEUED
+        s.get(Job, orphan_id).status = JobStatus.RUNNING
+        s.commit()
+    redis = FakeRedis([present_id])
+
+    assert reconcile_orphans(redis, sf, "image") == 1
+    # Orphan re-enqueued exactly once; the one already in Redis is untouched.
+    assert redis.pushed == [("jobs:image", orphan_id)]
+
+
+def test_reliable_pop_swallows_blocking_timeout():
+    # A redis socket timeout on an idle blocking pop is "no job", not an error
+    # the loop should log/handle.
+    from redis.exceptions import TimeoutError as RedisTimeoutError
+
+    from app.worker_common import reliable_pop
+
+    class TimingOutRedis(FakeRedis):
+        def blmove(self, *a, **k):
+            raise RedisTimeoutError("Timeout reading from socket")
+
+    assert reliable_pop(TimingOutRedis(), "image", 5) is None
+
+
+def test_reconcile_noop_when_all_present():
+    from app.worker_common import reconcile_orphans
+
+    sf = _factory()
+    job_id, _ = _seed(sf)
+    with sf() as s:
+        s.get(Job, job_id).status = JobStatus.QUEUED
+        s.commit()
+    redis = FakeRedis([job_id])
+    assert reconcile_orphans(redis, sf, "image") == 0
+    assert redis.pushed == []

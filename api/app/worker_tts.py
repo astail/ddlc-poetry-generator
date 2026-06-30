@@ -15,9 +15,16 @@ from typing import Callable, Optional
 
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Audio, Job, JobStatus
-from .queue import queue_key
+from .queue import queue_key, redis_from_url
 from .voices import UnsupportedLanguageError
-from .worker_common import ack, handle_job_failure, reap_stuck, reliable_pop
+from .worker_common import (
+    MAINTENANCE_INTERVAL_SECONDS,
+    ack,
+    handle_job_failure,
+    reap_stuck,
+    reconcile_orphans,
+    reliable_pop,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +144,14 @@ class AudioWorker:
     def run(self) -> None:
         logger.info("audio worker started (queue=%s)", queue_key("audio"))
         reap_stuck(self._redis, "audio")
+        reconcile_orphans(self._redis, self._session_factory, "audio")
+        last_maintenance = time.monotonic()
         while True:
             try:
                 self.run_once()
+                if time.monotonic() - last_maintenance > MAINTENANCE_INTERVAL_SECONDS:
+                    reap_stuck(self._redis, "audio")
+                    last_maintenance = time.monotonic()
             except Exception:  # noqa: BLE001
                 logger.exception("worker loop error")
                 time.sleep(1)
@@ -180,11 +192,9 @@ def _default_synthesizer() -> Synthesizer:
 
 
 def build_worker(synthesizer: Optional[Synthesizer] = None) -> AudioWorker:
-    import redis
-
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
-    client = redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
+    client = redis_from_url()
     return AudioWorker(
         session_factory,
         client,
