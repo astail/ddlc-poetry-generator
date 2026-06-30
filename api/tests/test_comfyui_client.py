@@ -3,7 +3,12 @@ import json
 import httpx
 import pytest
 
-from app.comfyui_client import ComfyUIClient, make_comfyui_processor
+from app.comfyui_client import (
+    BASE_NEGATIVE,
+    QUALITY_PREFIX,
+    ComfyUIClient,
+    make_comfyui_processor,
+)
 from app.models import Image
 
 
@@ -55,19 +60,26 @@ def test_generate_saves_image_and_substitutes_workflow(tmp_path):
 
     wf = captured["workflow"]
     assert wf["4"]["inputs"]["ckpt_name"] == "my-model.safetensors"
-    assert wf["6"]["inputs"]["text"] == "moonlit shore, 1girl"
-    assert wf["7"]["inputs"]["text"] == "blurry"
+    # The quality prefix is always injected ahead of the per-poem prompt (#96).
+    assert wf["6"]["inputs"]["text"] == f"{QUALITY_PREFIX}, moonlit shore, 1girl"
+    # The baseline negative is always applied, with the per-poem negative after it.
+    assert wf["7"]["inputs"]["text"] == f"{BASE_NEGATIVE}, blurry"
     assert wf["3"]["inputs"]["seed"] == 123
     assert wf["3"]["inputs"]["steps"] == 20
     assert wf["5"]["inputs"]["width"] == 640
     assert captured["view_params"]["filename"] == "x.png"
 
 
-def test_default_negative_used_when_empty(tmp_path):
+def test_baseline_prompts_injected_when_empty(tmp_path):
+    # Even with no per-poem prompts the quality prefix and baseline negative are
+    # always present, so every generation gets the stabilising defaults (#96).
     captured = {}
     client = _make_client(tmp_path, captured)
     client.generate(prompt="p", negative="", checkpoint="m.safetensors")
-    assert "bad anatomy" in captured["workflow"]["7"]["inputs"]["text"]
+    wf = captured["workflow"]
+    assert wf["6"]["inputs"]["text"] == f"{QUALITY_PREFIX}, p"
+    assert wf["7"]["inputs"]["text"] == BASE_NEGATIVE
+    assert "bad anatomy" in wf["7"]["inputs"]["text"]
 
 
 def test_no_image_raises(tmp_path):

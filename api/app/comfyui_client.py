@@ -25,7 +25,36 @@ from .models import Image
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_NEGATIVE = "lowres, bad anatomy, extra fingers, watermark, text"
+# Quality tags always prepended to the positive prompt so every generation gets
+# a consistent quality floor regardless of what the poem step produced (#96).
+QUALITY_PREFIX = (
+    "{{{masterpiece}}}, {{{best quality}}}, {{ultra-detailed}}, {illustration}, "
+    "{{an extremely delicate and beautiful}}, high quality, very_high_resolution, "
+    "large_filesize, full color"
+)
+
+# Baseline negative prompt always applied to every image (#96). The per-poem
+# negative (if any) is appended after this. Replaces the old minimal default.
+BASE_NEGATIVE = (
+    "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, "
+    "fewer digits, cropped, worst quality, low quality, normal quality, "
+    "jpeg artifacts, signature, watermark, username, blurry, artist name, "
+    "multiple legs, malformation, multiple angle, longbody, pubic hair, "
+    "missing arms, head_out_of_frame, 2koma, panel layout"
+)
+
+
+def with_quality_prefix(prompt: str) -> str:
+    """Lead with the mandatory quality tags, then the per-poem prompt (#96)."""
+    prompt = (prompt or "").strip().rstrip(",").strip()
+    return f"{QUALITY_PREFIX}, {prompt}" if prompt else QUALITY_PREFIX
+
+
+def with_base_negative(negative: str) -> str:
+    """Always apply the baseline negative, then any per-poem negative (#96)."""
+    negative = (negative or "").strip().rstrip(",").strip()
+    return f"{BASE_NEGATIVE}, {negative}" if negative else BASE_NEGATIVE
+
 
 # Mirrors comfyui/workflows/poem_sd15.json (kept in code so the worker image is
 # self-contained). Fields are overwritten per-request in generate().
@@ -54,7 +83,7 @@ DEFAULT_WORKFLOW: dict = {
         "inputs": {"width": 512, "height": 512, "batch_size": 1},
     },
     "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
-    "7": {"class_type": "CLIPTextEncode", "inputs": {"text": DEFAULT_NEGATIVE, "clip": ["4", 1]}},
+    "7": {"class_type": "CLIPTextEncode", "inputs": {"text": BASE_NEGATIVE, "clip": ["4", 1]}},
     "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
     "9": {
         "class_type": "SaveImage",
@@ -114,8 +143,10 @@ class ComfyUIClient:
         # SD1.5 for a selected model); falls back to the client's default.
         wf = copy.deepcopy(workflow if workflow is not None else self._workflow)
         wf["4"]["inputs"]["ckpt_name"] = checkpoint
-        wf["6"]["inputs"]["text"] = prompt
-        wf["7"]["inputs"]["text"] = negative or DEFAULT_NEGATIVE
+        # Always inject the quality prefix + baseline negative so image
+        # generation stays stable regardless of the per-poem prompts (#96).
+        wf["6"]["inputs"]["text"] = with_quality_prefix(prompt)
+        wf["7"]["inputs"]["text"] = with_base_negative(negative)
         wf["3"]["inputs"]["seed"] = seed
         wf["3"]["inputs"]["steps"] = steps
         wf["3"]["inputs"]["cfg"] = cfg
