@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 
+from redis.exceptions import RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from .models import AssetStatus, Job, JobStatus
@@ -90,6 +91,10 @@ def reconcile_orphans(redis_client, session_factory, job_type: str) -> int:
     lists but the DB rows stay queued/running, so the worker never sees them again
     and the asset is stuck pending/running forever. This pushes any such id back
     onto the queue so it gets processed.
+
+    Assumes a single worker per queue type (the default deployment) and that it
+    runs at startup *before* the consume loop: it re-enqueues RUNNING ids too, so
+    calling it while another worker is mid-job could double-process that job.
     """
     from sqlalchemy import select
 
@@ -105,13 +110,13 @@ def reconcile_orphans(redis_client, session_factory, job_type: str) -> int:
 
     recovered = 0
     with session_factory() as session:
-        stmt = select(Job).where(
+        stmt = select(Job.id).where(
             Job.type == job_type,
             Job.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
         )
-        for job in session.execute(stmt).scalars():
-            if job.id not in in_redis:
-                redis_client.rpush(queue_key(job_type), job.id)
+        for job_id in session.execute(stmt).scalars():
+            if job_id not in in_redis:
+                redis_client.rpush(queue_key(job_type), job_id)
                 recovered += 1
     if recovered:
         logger.warning("reconciled %s orphaned %s job(s) back onto the queue", recovered, job_type)
@@ -136,11 +141,12 @@ def handle_job_failure(
     try:
         attempts = int(redis_client.incr(f"retry:{job_type}:{job.id}"))
         redis_client.expire(f"retry:{job_type}:{job.id}", RETRY_TTL_SECONDS)
-    except Exception:  # noqa: BLE001 - redis flaky: fail visibly, never wedge the job
-        # We can't track the attempt count, and a re-enqueue would need Redis
-        # too, so dead-letter to a terminal, visible state. Previously this
-        # exception escaped before the caller's commit, stranding the job RUNNING
-        # on the processing list until the next restart.
+    except (RedisError, OSError):
+        # Redis is unreachable. We can't track the attempt count, and a
+        # re-enqueue would need Redis too, so dead-letter to a terminal, visible
+        # state. Previously any exception here escaped before the caller's commit,
+        # stranding the job RUNNING on the processing list until the next restart.
+        # (Builtin ConnectionError is an OSError, so test/double failures match.)
         logger.exception("retry bookkeeping unavailable for %s job %s; failing", job_type, job.id)
         job.status = JobStatus.FAILED
         asset.status = AssetStatus.FAILED
