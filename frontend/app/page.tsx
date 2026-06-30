@@ -132,7 +132,7 @@ export default function Home() {
 
       <form onSubmit={generate} className="form">
         <label>
-          Character
+          キャラクター
           <select value={character} onChange={(e) => setCharacter(e.target.value)}>
             {CHARACTERS.map((c) => (
               <option key={c} value={c}>
@@ -143,19 +143,19 @@ export default function Home() {
         </label>
 
         <label>
-          Theme (optional)
+          テーマ（任意）
           <input
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
             maxLength={200}
-            placeholder="e.g. the sea at midnight"
+            placeholder="例: 真夜中の海"
           />
         </label>
 
         <label>
-          Language
+          言語（詩・読み上げ音声）
           <select value={lang} onChange={(e) => setLang(e.target.value)}>
-            <option value="en">English</option>
+            <option value="en">English（英語）</option>
             <option value="ja">日本語</option>
           </select>
         </label>
@@ -201,7 +201,7 @@ export default function Home() {
         </fieldset>
 
         <button type="submit" disabled={loading}>
-          {loading ? "Generating…" : "Generate"}
+          {loading ? "生成中…" : "生成"}
         </button>
       </form>
 
