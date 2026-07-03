@@ -69,27 +69,20 @@ def test_generate_returns_bilingual_poem_and_enqueues(client):
     body = r.json()
     assert body["character"] == "yuri"
     assert body["poem_en"] and body["poem_ja"]  # bilingual
+    assert body["title_ja"] == "潮汐"  # Japanese title round-trips (from SAMPLE_POEM)
     assert body["image_status"] == "pending"
     assert body["audio_status"] == "pending"
 
-    # persisted: one poem, two jobs (image + audio)
+    # persisted: one poem (with its Japanese title), two jobs (image + audio)
     with client.session_local() as s:
         assert s.query(Poem).count() == 1
+        assert s.query(Poem).one().title_ja == "潮汐"
         jobs = s.query(Job).all()
         assert {j.type for j in jobs} == {"image", "audio"}
 
     # enqueued one image and one audio job
     assert len(client.queue.items.get("image", [])) == 1
     assert len(client.queue.items.get("audio", [])) == 1
-
-
-def test_generate_returns_and_persists_title_ja(client):
-    r = client.post("/api/generate", json={"character": "yuri", "lang": "ja"})
-    assert r.status_code == 200, r.text
-    assert r.json()["title_ja"] == "潮汐"  # from SAMPLE_POEM, round-tripped via the API
-
-    with client.session_local() as s:
-        assert s.query(Poem).one().title_ja == "潮汐"
 
 
 def test_generate_with_selected_model_sets_checkpoint(client):
