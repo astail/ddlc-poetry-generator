@@ -172,6 +172,7 @@ class PoemSummary(BaseModel):
     id: int
     character: str
     title: str
+    title_ja: Optional[str] = None
     mood: Optional[str]
     lang: str
     created_at: datetime
@@ -195,6 +196,7 @@ def _summary(poem: Poem) -> PoemSummary:
         id=poem.id,
         character=poem.character,
         title=poem.title,
+        title_ja=poem.title_ja,
         mood=poem.mood,
         lang=poem.lang,
         created_at=poem.created_at,

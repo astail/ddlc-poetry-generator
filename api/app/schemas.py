@@ -20,6 +20,7 @@ class PoemResult(BaseModel):
     """
 
     title: str
+    title_ja: str = ""
     character: str = ""
     poem_en: str
     poem_ja: str

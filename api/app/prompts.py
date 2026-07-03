@@ -25,7 +25,9 @@ Hard rules:
   DDLC poems, dialogue, or lyrics. This is non-commercial fan work.
 - Respond with ONLY a single JSON object. No prose, no markdown, no code fences.
 - Use exactly these keys:
-  - "title": a short title fitting {name}'s voice
+  - "title": a short English title fitting {name}'s voice
+  - "title_ja": a natural Japanese rendering of the title (kanji/kana, not
+    romaji), matching "poem_ja" in register
   - "character": must be exactly "{value}"
   - "poem_en": the poem in natural English
   - "poem_ja": a faithful, natural Japanese translation (kanji/kana, not romaji)

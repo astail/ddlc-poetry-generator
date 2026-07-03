@@ -35,6 +35,7 @@ def persist_poem(
         theme=theme,
         lang=lang,
         title=result.title,
+        title_ja=result.title_ja or None,
         poem_en=result.poem_en,
         poem_ja=result.poem_ja,
         mood=result.mood,
