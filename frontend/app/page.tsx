@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "./api-base";
+import { CHAR_TAGS, THEME_SUGGESTIONS, langName, useLang, useT } from "./i18n";
 
 const CHARACTERS = [
-  { id: "sayori", name: "Sayori", letter: "S", tag: "明るい・素朴" },
-  { id: "natsuki", name: "Natsuki", letter: "N", tag: "元気・率直" },
-  { id: "yuri", name: "Yuri", letter: "Y", tag: "耽美・幻想" },
-  { id: "monika", name: "Monika", letter: "M", tag: "知的・内省" },
+  { id: "sayori", name: "Sayori", letter: "S" },
+  { id: "natsuki", name: "Natsuki", letter: "N" },
+  { id: "yuri", name: "Yuri", letter: "Y" },
+  { id: "monika", name: "Monika", letter: "M" },
 ] as const;
-
-const THEME_SUGGESTIONS = ["真夜中の海", "放課後の教室", "桜", "雨と紅茶", "遠い約束"];
 
 type Asset = { id: number; status: string; url: string | null; lang?: string };
 
@@ -21,6 +20,7 @@ type Poem = {
   id: number;
   character: string;
   title: string;
+  title_ja?: string | null;
   poem_en: string;
   poem_ja: string;
   mood?: string | null;
@@ -31,9 +31,10 @@ type Poem = {
 const TERMINAL = new Set(["done", "failed"]);
 
 export default function Home() {
+  const { lang } = useLang();
+  const t = useT();
   const [character, setCharacter] = useState<string>("monika");
   const [theme, setTheme] = useState("");
-  const [lang, setLang] = useState("en");
   const [genImage, setGenImage] = useState(true);
   const [genAudio, setGenAudio] = useState(true);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -41,12 +42,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
-  // Which language the result card shows. Defaults to the chosen audio language
-  // when audio is generated, otherwise Japanese (set at generation time).
-  const [viewLang, setViewLang] = useState<string>("ja");
+  // Which language the result card shows. Follows the global mode, but can be
+  // toggled per-poem to compare translations while reading.
+  const [viewLang, setViewLang] = useState<string>(lang);
   // Languages the active TTS backend can voice (#89). Defaults to English only,
   // matching the default Piper/CPU backend, until the API answers.
   const [ttsLangs, setTtsLangs] = useState<string[]>(["en"]);
+  const poemRef = useRef<HTMLElement>(null);
+
+  // Keep the result card in step with the global mode when it changes.
+  useEffect(() => {
+    setViewLang(lang);
+  }, [lang]);
 
   // Load the selectable image models once (#49).
   useEffect(() => {
@@ -62,8 +69,9 @@ export default function Home() {
       });
   }, []);
 
-  // Ask the API which languages can produce audio so we can disable the option
-  // for unsupported ones (e.g. ja on Piper) instead of queuing a doomed job (#89).
+  // Ask the API which languages can produce audio so we can warn when the active
+  // mode's language can't be voiced (e.g. ja on Piper) instead of silently
+  // queuing a doomed job (#89).
   useEffect(() => {
     fetch(`${API_BASE}/api/tts/capabilities`)
       .then((r) => (r.ok ? r.json() : null))
@@ -75,6 +83,8 @@ export default function Home() {
       });
   }, []);
 
+  // Audio is produced in the active mode's language; only possible when the TTS
+  // backend can voice it.
   const audioSupported = ttsLangs.includes(lang);
 
   async function generate(e?: React.FormEvent) {
@@ -97,10 +107,7 @@ export default function Home() {
         }),
       });
       if (!res.ok) throw new Error(`API error ${res.status}`);
-      // Prefer the generated audio's language; fall back to Japanese when no
-      // audio was requested (per user preference).
-      const willAudio = genAudio && audioSupported;
-      setViewLang(willAudio ? lang : "ja");
+      setViewLang(lang);
       setPoem((await res.json()) as Poem);
     } catch (err) {
       setError(err instanceof Error ? err.message : "request failed");
@@ -127,6 +134,15 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [poem]);
 
+  // Bring a newly generated poem into view (the form stays at the top
+  // otherwise). Keyed on the poem id so polling updates don't re-scroll.
+  const poemId = poem?.id;
+  useEffect(() => {
+    if (poemId != null) {
+      poemRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [poemId]);
+
   const image = poem?.images?.[0];
 
   // The audio matching the currently viewed language (falls back to the first).
@@ -134,18 +150,24 @@ export default function Home() {
     (poem?.audios ?? []).find((a) => (a.lang ?? "en") === viewLang) ??
     poem?.audios?.[0];
 
+  const displayTitle = poem
+    ? viewLang === "ja"
+      ? poem.title_ja || poem.title
+      : poem.title
+    : "";
+
   return (
     <main className="container">
       <header className="hero">
-        <h1>詩を、綴ろう。</h1>
-        <p className="subtitle">unofficial · non-commercial fan project</p>
+        <h1>Just Poems.</h1>
+        <p className="subtitle">{t("hero.subtitle")}</p>
       </header>
 
       <form onSubmit={generate} className="form-card">
         <div className="field">
           <div className="label">
-            キャラクター
-            <span className="opt">作風を選ぶ</span>
+            {t("form.character")}
+            <span className="opt">{t("form.characterOpt")}</span>
           </div>
           <div className="char-grid">
             {CHARACTERS.map((c) => (
@@ -164,7 +186,7 @@ export default function Home() {
                   {c.letter}
                 </span>
                 <span className="name">{c.name}</span>
-                <span className="tag">{c.tag}</span>
+                <span className="tag">{CHAR_TAGS[lang][c.id]}</span>
               </button>
             ))}
           </div>
@@ -172,8 +194,8 @@ export default function Home() {
 
         <div className="field">
           <div className="label">
-            テーマ
-            <span className="opt">任意 — 空欄でおまかせ</span>
+            {t("form.theme")}
+            <span className="opt">{t("form.themeOpt")}</span>
           </div>
           <div className="input-wrap">
             <span className="ico" aria-hidden="true">
@@ -184,11 +206,11 @@ export default function Home() {
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               maxLength={200}
-              placeholder="例: 真夜中の海"
+              placeholder={t("form.themePlaceholder")}
             />
           </div>
           <div className="suggestions">
-            {THEME_SUGGESTIONS.map((s) => (
+            {THEME_SUGGESTIONS[lang].map((s) => (
               <button key={s} type="button" className="chip" onClick={() => setTheme(s)}>
                 {s}
               </button>
@@ -197,12 +219,12 @@ export default function Home() {
         </div>
 
         <div className="field">
-          <div className="label">生成するもの</div>
+          <div className="label">{t("form.generateWhat")}</div>
           <div className="options">
             <div className="opt-row">
               <div className="opt-main">
-                <span className="t">🎨 画像を生成</span>
-                <span className="d">詩の雰囲気に合わせたイラスト</span>
+                <span className="t">{t("form.image")}</span>
+                <span className="d">{t("form.imageDesc")}</span>
               </div>
               <label className="toggle">
                 <input
@@ -217,7 +239,7 @@ export default function Home() {
 
             {genImage && models.length > 0 && (
               <div className="sub-select">
-                <label htmlFor="model-select">モデル</label>
+                <label htmlFor="model-select">{t("form.model")}</label>
                 <select
                   id="model-select"
                   value={model}
@@ -234,8 +256,8 @@ export default function Home() {
 
             <div className="opt-row">
               <div className="opt-main">
-                <span className="t">🔊 音声を生成</span>
-                <span className="d">キャラボイスで読み上げ</span>
+                <span className="t">{t("form.audio")}</span>
+                <span className="d">{t("form.audioDesc")}</span>
               </div>
               <label className="toggle">
                 <input
@@ -247,35 +269,18 @@ export default function Home() {
                 <span className="thumb" />
               </label>
             </div>
-
-            {genAudio && (
-              <div className="sub-select">
-                <label htmlFor="voice-lang">音声の言語</label>
-                <select
-                  id="voice-lang"
-                  value={lang}
-                  onChange={(e) => setLang(e.target.value)}
-                >
-                  <option value="en">English（英語）</option>
-                  <option value="ja" disabled={!ttsLangs.includes("ja")}>
-                    日本語{ttsLangs.includes("ja") ? "" : "（利用不可）"}
-                  </option>
-                </select>
-              </div>
-            )}
           </div>
-          {genAudio && !ttsLangs.includes("ja") && (
+          {genAudio && !audioSupported && (
             <p className="audio-unsupported" role="note">
-              ※ 日本語の音声生成は、現在のサーバ構成では利用できません。
-              日本語の読み上げにはサーバ側で VOICEVOX を有効化してください（英語は利用できます）。
+              {t("form.audioUnsupported")}
             </p>
           )}
         </div>
 
         <button type="submit" className="cta" disabled={loading}>
-          {loading ? "生成中…" : "✨ 生成する"}
+          {loading ? t("form.submitting") : t("form.submit")}
         </button>
-        <p className="foot-note">Team Salvato とは無関係の非公式ファン制作物です</p>
+        <p className="foot-note">{t("form.footNote")}</p>
       </form>
 
       {error && (
@@ -285,19 +290,19 @@ export default function Home() {
       )}
 
       {poem && (
-        <article className="poem" data-testid="poem" data-char={poem.character}>
+        <article ref={poemRef} className="poem" data-testid="poem" data-char={poem.character}>
           <div className="poem-head">
             <span className="poem-avatar" aria-hidden="true">
               {poem.character.charAt(0).toUpperCase()}
             </span>
             <div className="poem-heading">
-              <h2 className="poem-title">{poem.title}</h2>
+              <h2 className="poem-title">{displayTitle}</h2>
               <div className="poem-by">
                 {poem.character}
                 {poem.mood ? ` · ${poem.mood}` : ""}
               </div>
             </div>
-            <div className="lang-toggle" role="group" aria-label="詩の言語">
+            <div className="lang-toggle" role="group" aria-label={t("poem.langGroup")}>
               <button
                 type="button"
                 className={viewLang === "en" ? "active" : ""}
@@ -319,16 +324,18 @@ export default function Home() {
             {image && (
               <div className="poem-image-col" data-testid="image-area">
                 {image.status === "done" && image.url ? (
-                  <img src={`${API_BASE}${image.url}`} alt={poem.title} className="poem-image" />
+                  <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
                 ) : image.status === "failed" ? (
                   <div className="img-failed">
-                    画像生成に失敗しました
+                    {t("poem.imageFailed")}
                     <button type="button" onClick={() => generate()}>
-                      再生成
+                      {t("poem.regenerate")}
                     </button>
                   </div>
                 ) : (
-                  <div className="img-pending">画像を生成中… ({image.status ?? "queued"})</div>
+                  <div className="img-pending">
+                    {t("poem.imagePending")} ({image.status ?? "queued"})
+                  </div>
                 )}
               </div>
             )}
@@ -338,7 +345,7 @@ export default function Home() {
                 <div className="audio-area" data-testid="audio-area">
                   <div className="audio-head">
                     <span className="audio-label">
-                      🔊 読み上げ（{viewLang === "ja" ? "日本語" : "English"}）
+                      🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
                     </span>
                   </div>
                   {selectedAudio?.status === "done" && selectedAudio.url ? (
@@ -348,10 +355,10 @@ export default function Home() {
                       src={`${API_BASE}${selectedAudio.url}`}
                     />
                   ) : selectedAudio?.status === "failed" ? (
-                    <div className="audio-failed">音声生成に失敗しました</div>
+                    <div className="audio-failed">{t("poem.audioFailed")}</div>
                   ) : (
                     <div className="audio-pending">
-                      音声を生成中… ({selectedAudio?.status ?? "queued"})
+                      {t("poem.audioPending")} ({selectedAudio?.status ?? "queued"})
                     </div>
                   )}
                 </div>

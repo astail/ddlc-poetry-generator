@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { API_BASE } from "../api-base";
+import { useLang, useT } from "../i18n";
 
 const FILTERS: ReadonlyArray<readonly [string, string]> = [
-  ["", "All"],
+  ["", "all"],
   ["sayori", "Sayori"],
   ["natsuki", "Natsuki"],
   ["yuri", "Yuri"],
@@ -19,12 +20,15 @@ type Summary = {
   id: number;
   character: string;
   title: string;
+  title_ja?: string | null;
   mood?: string | null;
   image_status: string | null;
   image_url: string | null;
 };
 
 export default function Gallery() {
+  const { lang } = useLang();
+  const t = useT();
   const [character, setCharacter] = useState("");
   const [page, setPage] = useState(0);
   const [items, setItems] = useState<Summary[]>([]);
@@ -44,11 +48,14 @@ export default function Gallery() {
       .finally(() => setLoading(false));
   }, [character, page]);
 
+  const cardTitle = (p: Summary) =>
+    lang === "ja" ? p.title_ja || p.title : p.title;
+
   return (
     <main className="container">
       <header className="hero">
-        <h1>Gallery</h1>
-        <p className="subtitle">これまでに生まれた詩</p>
+        <h1>{t("gallery.title")}</h1>
+        <p className="subtitle">{t("gallery.subtitle")}</p>
       </header>
 
       <div className="filters">
@@ -63,31 +70,31 @@ export default function Gallery() {
               setPage(0);
             }}
           >
-            {label}
+            {label === "all" ? t("gallery.all") : label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p>{t("gallery.loading")}</p>
       ) : items.length === 0 ? (
-        <p>まだ詩がありません。</p>
+        <p>{t("gallery.empty")}</p>
       ) : (
         <div className="gallery-grid">
           {items.map((p) => (
             <Link key={p.id} href={`/poems/${p.id}`} className="card" data-char={p.character}>
               <div className="card-media">
                 {p.image_status === "done" && p.image_url ? (
-                  <img src={`${API_BASE}${p.image_url}`} alt={p.title} />
+                  <img src={`${API_BASE}${p.image_url}`} alt={cardTitle(p)} />
                 ) : (
-                  <div className="card-noimg" role="img" aria-label="画像なし">
+                  <div className="card-noimg" role="img" aria-label={t("gallery.noImage")}>
                     🌸
                   </div>
                 )}
                 <span className="card-char">{p.character}</span>
               </div>
               <div className="card-body">
-                <strong>{p.title}</strong>
+                <strong>{cardTitle(p)}</strong>
                 {p.mood && <span className="card-mood">{p.mood}</span>}
               </div>
             </Link>
@@ -97,11 +104,13 @@ export default function Gallery() {
 
       <div className="pager">
         <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
-          ← Prev
+          {t("gallery.prev")}
         </button>
-        <span>page {page + 1}</span>
+        <span>
+          {t("gallery.page")} {page + 1}
+        </span>
         <button type="button" disabled={items.length < PAGE_SIZE} onClick={() => setPage((p) => p + 1)}>
-          Next →
+          {t("gallery.next")}
         </button>
       </div>
     </main>

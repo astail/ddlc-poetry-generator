@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import { LangProvider } from "./i18n";
+import SiteNav from "./site-nav";
 
 export const metadata: Metadata = {
   title: "DDLC Poetry Generator",
@@ -15,12 +16,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <nav className="nav">
-          <span className="brand">🌸 DDLC Poetry</span>
-          <Link href="/">Generate</Link>
-          <Link href="/gallery">Gallery</Link>
-        </nav>
-        {children}
+        <LangProvider>
+          <SiteNav />
+          {children}
+        </LangProvider>
       </body>
     </html>
   );
