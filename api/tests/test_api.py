@@ -83,6 +83,15 @@ def test_generate_returns_bilingual_poem_and_enqueues(client):
     assert len(client.queue.items.get("audio", [])) == 1
 
 
+def test_generate_returns_and_persists_title_ja(client):
+    r = client.post("/api/generate", json={"character": "yuri", "lang": "ja"})
+    assert r.status_code == 200, r.text
+    assert r.json()["title_ja"] == "潮汐"  # from SAMPLE_POEM, round-tripped via the API
+
+    with client.session_local() as s:
+        assert s.query(Poem).one().title_ja == "潮汐"
+
+
 def test_generate_with_selected_model_sets_checkpoint(client):
     r = client.post(
         "/api/generate",

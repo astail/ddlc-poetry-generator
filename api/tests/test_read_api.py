@@ -123,6 +123,26 @@ def test_get_poem_404(client):
     assert client.get("/api/poems/9999").status_code == 404
 
 
+def test_title_ja_exposed_in_list_and_detail(client):
+    with client.session_local() as s:
+        with_ja = Poem(
+            character="yuri", title="Tidewater", title_ja="潮汐", poem_en="e", poem_ja="j"
+        )
+        without_ja = Poem(character="natsuki", title="Cupcakes", poem_en="e", poem_ja="j")
+        s.add_all([with_ja, without_ja])
+        s.commit()
+        ja_id = with_ja.id
+
+    by_id = {p["id"]: p for p in client.get("/api/poems").json()}
+    assert by_id[ja_id]["title_ja"] == "潮汐"
+    # A poem without a Japanese title returns null (frontend falls back to title).
+    assert all(p["title_ja"] is None for p in by_id.values() if p["id"] != ja_id)
+
+    detail = client.get(f"/api/poems/{ja_id}").json()
+    assert detail["title"] == "Tidewater"
+    assert detail["title_ja"] == "潮汐"
+
+
 def test_asset_serving(client, tmp_path):
     (tmp_path / "images").mkdir()
     (tmp_path / "images" / "x.txt").write_text("hello")

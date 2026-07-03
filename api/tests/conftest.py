@@ -49,6 +49,7 @@ class FakeClient:
 
 SAMPLE_POEM = {
     "title": "Tidewater",
+    "title_ja": "潮汐",
     "character": "ignored-by-client",
     "poem_en": "The sea forgets my name each night.",
     "poem_ja": "海は毎晩わたしの名前を忘れる。",

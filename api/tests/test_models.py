@@ -54,6 +54,29 @@ def test_poem_with_relations_and_defaults():
         assert job.ref_id == image_id
 
 
+def test_persist_poem_stores_and_nulls_title_ja():
+    """persist_poem saves a Japanese title, and coalesces an empty one to NULL
+    so old/absent titles fall back to the English title on the frontend."""
+    from app.repository import persist_poem
+    from app.schemas import PoemResult
+
+    _, Session = _session_factory()
+
+    with Session() as s:
+        res = PoemResult(
+            title="Tidewater", title_ja="潮汐", character="yuri", poem_en="e", poem_ja="j"
+        )
+        poem, _ = persist_poem(s, res, lang="ja", generate_image=False, generate_audio=False)
+        assert poem.title_ja == "潮汐"
+
+    with Session() as s:
+        res_blank = PoemResult(
+            title="Tidewater", title_ja="", character="yuri", poem_en="e", poem_ja="j"
+        )
+        poem2, _ = persist_poem(s, res_blank, generate_image=False, generate_audio=False)
+        assert poem2.title_ja is None
+
+
 def test_cascade_delete_removes_children():
     _, Session = _session_factory()
     with Session() as s:
