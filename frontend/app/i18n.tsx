@@ -4,48 +4,37 @@
 // language of generated content (poem title, poem body, and audio). The choice
 // is persisted in localStorage so it survives reloads and navigation.
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-export type Lang = "en" | "ja";
+import { DEFAULT_LANG, LANG_COOKIE, type Lang } from "./i18n-config";
 
-const STORAGE_KEY = "ddlc-lang";
+export type { Lang };
 
 type LangCtx = { lang: Lang; setLang: (l: Lang) => void };
 
-const Ctx = createContext<LangCtx>({ lang: "ja", setLang: () => {} });
+const Ctx = createContext<LangCtx>({ lang: DEFAULT_LANG, setLang: () => {} });
 
-export function LangProvider({ children }: { children: React.ReactNode }) {
-  // Japanese is the default (server render + first client render both use it, so
-  // there's no hydration mismatch). A persisted choice is applied after mount.
-  const [lang, setLangState] = useState<Lang>("ja");
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved === "en" || saved === "ja") setLangState(saved);
-    } catch {
-      /* localStorage unavailable (private mode): keep the default */
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof document !== "undefined") document.documentElement.lang = lang;
-  }, [lang]);
+export function LangProvider({
+  children,
+  initialLang,
+}: {
+  children: React.ReactNode;
+  initialLang: Lang;
+}) {
+  // Seeded from the cookie the server already read, so the first client render
+  // matches the server (correct <html lang> + metadata, no hydration flash).
+  const [lang, setLangState] = useState<Lang>(initialLang);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
+    // Persist in a cookie so the next server render picks the right language
+    // (a year's max-age; lax so it rides top-level navigations).
     try {
-      window.localStorage.setItem(STORAGE_KEY, l);
+      document.cookie = `${LANG_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`;
     } catch {
       /* best-effort persistence */
     }
+    document.documentElement.lang = l;
   }, []);
 
   const value = useMemo(() => ({ lang, setLang }), [lang, setLang]);

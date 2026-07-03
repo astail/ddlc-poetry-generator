@@ -1,22 +1,35 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
+import { LANG_COOKIE, resolveLang } from "./i18n-config";
 import { LangProvider } from "./i18n";
 import SiteNav from "./site-nav";
 
-export const metadata: Metadata = {
-  title: "DDLC Poetry Generator",
-  description: "Unofficial, non-commercial DDLC fan poem generator",
-};
+// Reading the cookie makes rendering dynamic (per-request), which is what we
+// want: the language is a user preference, not a build-time constant.
+export function generateMetadata(): Metadata {
+  const lang = resolveLang(cookies().get(LANG_COOKIE)?.value);
+  return lang === "ja"
+    ? {
+        title: "DDLC 詩ジェネレーター",
+        description: "非公式・非営利の DDLC ファン詩ジェネレーター",
+      }
+    : {
+        title: "DDLC Poetry Generator",
+        description: "Unofficial, non-commercial DDLC fan poem generator",
+      };
+}
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const lang = resolveLang(cookies().get(LANG_COOKIE)?.value);
   return (
-    <html lang="ja">
+    <html lang={lang}>
       <body>
-        <LangProvider>
+        <LangProvider initialLang={lang}>
           <SiteNav />
           {children}
         </LangProvider>
