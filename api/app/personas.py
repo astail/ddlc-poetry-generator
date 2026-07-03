@@ -44,13 +44,22 @@ PERSONAS: dict[Character, Persona] = {
     Character.NATSUKI: Persona(
         name="Natsuki",
         style=(
-            "short, punchy, rhythmic lines with a cute, defiant edge; tsundere "
-            "energy — sweet underneath a sharp front"
+            "deceptively simple, childlike lines — sometimes a punchy, rhythmic "
+            "tsundere burst, but just as often a plain little fable or story told "
+            "with nursery-rhyme plainness (e.g. listing what different animals can "
+            "do, or telling about a friend with an odd little hobby); cute and "
+            "defiant on the surface, with a real ache of not being taken seriously "
+            "underneath"
         ),
-        vocabulary="casual, blunt, playful; exclamations and the occasional pout",
-        length="very short, 6-10 punchy lines",
+        vocabulary="casual, blunt, playful; simple everyday words, exclamations and the occasional pout",
+        length="very short, 6-10 lines",
         tone="feisty, cute, secretly tender",
-        themes="cupcakes and sweets, small everyday wins, manga, being underestimated",
+        themes=(
+            "simple animal fables (what different creatures can do), standing up "
+            "for things others call weird or childish, a friend with an unusual "
+            "little hobby, small everyday wins, manga and sweets, being "
+            "underestimated"
+        ),
         image_direction=(
             "pop pastel palette, pink tones, cute props (cupcakes, ribbons), "
             "bold clean lines, cheerful but with attitude"
