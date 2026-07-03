@@ -470,7 +470,8 @@ button:disabled {
   border-radius: 20px;
   border-top: 6px solid var(--char);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09);
-  overflow: hidden;
+  /* No `overflow: hidden` here: it would trap `position: sticky` on the image
+     column. The header rounds its own top corners instead (see .poem-head). */
 }
 
 [data-char="sayori"] {
@@ -493,6 +494,10 @@ button:disabled {
   padding: 1rem 1.4rem;
   background: color-mix(in srgb, var(--char) 8%, #fff);
   border-bottom: 1px solid color-mix(in srgb, var(--char) 18%, #fff);
+  /* Match the card's rounded top (minus the 6px accent border) since the card
+     no longer clips with overflow:hidden. */
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
 }
 
 .poem-avatar {
@@ -573,6 +578,14 @@ button:disabled {
 
 .poem-main {
   min-width: 0;
+}
+
+/* The image follows down while you scroll through a long poem, staying in view
+   beside the text until the card ends. */
+.poem-image-col {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
 }
 
 .poem-image {
@@ -664,6 +677,10 @@ button:disabled {
 @media (max-width: 640px) {
   .poem-inner {
     grid-template-columns: 1fr;
+  }
+  /* Stacked layout: don't pin the image over the text. */
+  .poem-image-col {
+    position: static;
   }
   .poem-image {
     max-width: 360px;
