@@ -19,6 +19,7 @@ type Summary = {
   id: number;
   character: string;
   title: string;
+  mood?: string | null;
   image_status: string | null;
   image_url: string | null;
 };
@@ -45,13 +46,17 @@ export default function Gallery() {
 
   return (
     <main className="container">
-      <h1>Gallery</h1>
+      <header className="hero">
+        <h1>Gallery</h1>
+        <p className="subtitle">これまでに生まれた詩</p>
+      </header>
 
       <div className="filters">
         {FILTERS.map(([value, label]) => (
           <button
             key={value || "all"}
             type="button"
+            data-char={value}
             className={value === character ? "active" : ""}
             onClick={() => {
               setCharacter(value);
@@ -71,14 +76,19 @@ export default function Gallery() {
         <div className="gallery-grid">
           {items.map((p) => (
             <Link key={p.id} href={`/poems/${p.id}`} className="card" data-char={p.character}>
-              {p.image_status === "done" && p.image_url ? (
-                <img src={`${API_BASE}${p.image_url}`} alt={p.title} />
-              ) : (
-                <div className="card-noimg">no image</div>
-              )}
+              <div className="card-media">
+                {p.image_status === "done" && p.image_url ? (
+                  <img src={`${API_BASE}${p.image_url}`} alt={p.title} />
+                ) : (
+                  <div className="card-noimg" role="img" aria-label="画像なし">
+                    🌸
+                  </div>
+                )}
+                <span className="card-char">{p.character}</span>
+              </div>
               <div className="card-body">
                 <strong>{p.title}</strong>
-                <span>{p.character}</span>
+                {p.mood && <span className="card-mood">{p.mood}</span>}
               </div>
             </Link>
           ))}

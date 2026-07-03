@@ -16,6 +16,7 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         <nav className="nav">
+          <span className="brand">🌸 DDLC Poetry</span>
           <Link href="/">Generate</Link>
           <Link href="/gallery">Gallery</Link>
         </nav>
