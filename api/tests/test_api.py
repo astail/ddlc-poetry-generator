@@ -69,12 +69,14 @@ def test_generate_returns_bilingual_poem_and_enqueues(client):
     body = r.json()
     assert body["character"] == "yuri"
     assert body["poem_en"] and body["poem_ja"]  # bilingual
+    assert body["title_ja"] == "潮汐"  # Japanese title round-trips (from SAMPLE_POEM)
     assert body["image_status"] == "pending"
     assert body["audio_status"] == "pending"
 
-    # persisted: one poem, two jobs (image + audio)
+    # persisted: one poem (with its Japanese title), two jobs (image + audio)
     with client.session_local() as s:
         assert s.query(Poem).count() == 1
+        assert s.query(Poem).one().title_ja == "潮汐"
         jobs = s.query(Job).all()
         assert {j.type for j in jobs} == {"image", "audio"}
 

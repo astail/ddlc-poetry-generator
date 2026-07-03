@@ -1,12 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&family=Klee+One:wght@600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Klee+One:wght@600&family=Zen+Maru+Gothic:wght@400;500;700&display=swap");
 
 :root {
   --bg: #fff0f5;
   --bg2: #ffe6ef;
   --fg: #4a3540;
+  --muted: #927884;
   --accent: #e35d8a;
+  --accent-2: #f48fb1;
   --card: #fffafc;
-  /* per-character accent, overridden via [data-char] */
+  --line: #ffd3e2;
+  --line-soft: #f3c2d5;
+  /* per-character accent, overridden via [data-char] / [data-c] */
   --char: var(--accent);
 }
 
@@ -18,15 +22,18 @@ body {
   margin: 0;
   font-family: "Zen Maru Gothic", system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--fg);
-  background: linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
   background-attachment: fixed;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 .container {
-  max-width: 740px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 1rem 1.25rem 4rem;
+  padding: 1.25rem 1.25rem 4rem;
 }
 
 h1 {
@@ -49,10 +56,22 @@ h2 {
 /* ---- nav ---- */
 .nav {
   display: flex;
+  align-items: center;
   gap: 1.25rem;
   padding: 0.9rem 1.25rem;
   background: linear-gradient(90deg, #e35d8a, #f48fb1);
-  box-shadow: 0 2px 10px rgba(227, 93, 138, 0.25);
+  box-shadow: 0 2px 14px rgba(227, 93, 138, 0.26);
+}
+
+.nav .brand {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fff;
+  font-family: "Klee One", "Zen Maru Gothic", serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .nav a {
@@ -60,44 +79,366 @@ h2 {
   text-decoration: none;
   font-weight: 700;
   letter-spacing: 0.03em;
+  opacity: 0.92;
 }
 
-/* ---- form ---- */
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
+.nav a:hover {
+  opacity: 1;
+}
+
+/* global EN / 日本語 mode switch, sitting on the pink nav bar */
+.lang-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.lang-switch button {
+  margin: 0;
+  padding: 0.28rem 0.7rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.lang-switch button:hover {
+  opacity: 1;
+}
+
+.lang-switch button.active {
+  background: #fff;
+  color: #e35d8a;
+  opacity: 1;
+}
+
+/* ---- hero ---- */
+.hero {
+  text-align: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.hero h1 {
+  font-size: 2rem;
+  margin: 0 0 0.35rem;
+}
+
+.hero .subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  opacity: 1;
+}
+
+/* ---- form card ---- */
+.form-card {
   background: var(--card);
-  padding: 1.4rem;
-  border-radius: 18px;
-  border: 2px solid #ffd3e2;
-  box-shadow: 0 6px 22px rgba(227, 93, 138, 0.14);
+  border: 1.5px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 10px 34px rgba(227, 93, 138, 0.14);
+  padding: 1.6rem;
 }
 
-label {
+.field {
+  margin-bottom: 1.5rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field > .label {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.85rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.6rem;
+}
+
+.field > .label .opt {
+  font-weight: 500;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ---- character picker ---- */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
+.char {
+  --c: var(--accent);
+  position: relative;
+  margin: 0;
+  cursor: pointer;
+  border: 2px solid #f2d6e0;
+  background: #fff;
+  color: var(--fg);
+  border-radius: 16px;
+  padding: 0.85rem 0.5rem 0.7rem;
+  text-align: center;
+  transition: transform 0.08s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.char:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.char .avatar {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 0.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 22%, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Klee One", serif;
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--c);
+  border: 2px solid color-mix(in srgb, var(--c) 45%, #fff);
+}
+
+.char .name {
+  display: block;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
-select,
-input {
-  padding: 0.6rem 0.75rem;
-  border: 2px solid #f3c2d5;
-  border-radius: 10px;
+.char .tag {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.64rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.char .check {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 50%;
+  background: var(--c);
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.char[aria-pressed="true"] {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 8%, #fff);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 30%, transparent);
+}
+
+.char[aria-pressed="true"] .check {
+  display: block;
+}
+
+.char[data-c="sayori"] {
+  --c: #f0788f;
+}
+.char[data-c="natsuki"] {
+  --c: #f06fa8;
+}
+.char[data-c="yuri"] {
+  --c: #8e6fb0;
+}
+.char[data-c="monika"] {
+  --c: #4caf86;
+}
+
+/* ---- theme input ---- */
+.input-wrap {
+  position: relative;
+}
+
+.input-wrap .ico {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.5;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.form-card input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 0.85rem 0.75rem 2.4rem;
+  border: 2px solid var(--line-soft);
+  border-radius: 12px;
   font-size: 1rem;
   font-family: inherit;
   background: #fff;
+  color: var(--fg);
 }
 
-select:focus,
-input:focus {
+.form-card input[type="text"]::placeholder {
+  color: #c9adb9;
+}
+
+.form-card input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(227, 93, 138, 0.12);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.chip {
+  margin: 0;
+  border: 1.5px dashed var(--line-soft);
+  background: #fff;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.chip:hover {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- generate options ---- */
+.options {
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fffdfe;
+}
+
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+
+.opt-row + .opt-row,
+.sub-select + .opt-row {
+  border-top: 1px solid #fbe4ec;
+}
+
+.opt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-right: auto;
+}
+
+.opt-main .t {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.opt-main .d {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* toggle switch */
+.toggle {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex: none;
+  cursor: pointer;
+}
+
+.toggle input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle .track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #eccdd9;
+  transition: background 0.15s ease;
+}
+
+.toggle .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.toggle input:checked + .track {
+  background: var(--accent);
+}
+
+.toggle input:checked ~ .thumb {
+  transform: translateX(20px);
+}
+
+.sub-select {
+  padding: 0 1rem 0.85rem;
+}
+
+.sub-select label {
+  display: block;
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.form-card select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 2px solid var(--line-soft);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--fg);
+}
+
+.form-card select:focus {
   outline: none;
   border-color: var(--accent);
 }
 
+/* ---- shared button base ---- */
 button {
   margin-top: 0.3rem;
   padding: 0.7rem 1.1rem;
@@ -125,29 +466,47 @@ button:disabled {
   cursor: progress;
 }
 
+/* ---- CTA ---- */
+.cta {
+  margin-top: 1.5rem;
+  width: 100%;
+  padding: 0.95rem 1.1rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 22px rgba(227, 93, 138, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.foot-note {
+  margin: 0.9rem 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 .error {
   color: #b00020;
   font-weight: 700;
 }
 
-/* ---- poem card (per-character accent) ---- */
+/* ---- poem result card (per-character accent) ---- */
 .poem {
   margin-top: 1.75rem;
   background: var(--card);
-  padding: 1.5rem;
-  border-radius: 18px;
+  border-radius: 20px;
   border-top: 6px solid var(--char);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08);
-}
-
-.poem h2 {
-  margin-top: 0;
-  color: var(--char);
-}
-
-.poem h2 small {
-  font-weight: 400;
-  opacity: 0.6;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09);
+  /* Small gap when scrolled into view after generating (scrollIntoView). */
+  scroll-margin-top: 1rem;
+  /* No `overflow: hidden` here: it would trap `position: sticky` on the image
+     column. The header rounds its own top corners instead (see .poem-head). */
 }
 
 [data-char="sayori"] {
@@ -163,38 +522,112 @@ button:disabled {
   --char: #4caf86;
 }
 
-.poem-text {
-  white-space: pre-wrap;
-  font-family: inherit;
-  font-size: 1.04rem;
-  line-height: 1.75;
-  margin: 0 0 1rem;
+.poem-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.4rem;
+  background: color-mix(in srgb, var(--char) 8%, #fff);
+  border-bottom: 1px solid color-mix(in srgb, var(--char) 18%, #fff);
+  /* Match the card's rounded top (minus the 6px accent border) since the card
+     no longer clips with overflow:hidden. */
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
 }
 
-.poem-ja {
-  border-top: 1px dashed #f0c4d4;
-  padding-top: 1rem;
-  opacity: 0.92;
-}
-
-.status {
-  font-size: 0.8rem;
-  opacity: 0.65;
-}
-
-/* ---- image ---- */
-.image-area {
-  margin: 0.5rem 0 1.25rem;
-  min-height: 120px;
+.poem-avatar {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: "Klee One", serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--char);
+  background: color-mix(in srgb, var(--char) 20%, #fff);
+  border: 2px solid color-mix(in srgb, var(--char) 45%, #fff);
+}
+
+.poem-heading {
+  margin-right: auto;
+  min-width: 0;
+}
+
+.poem-title {
+  margin: 0;
+  font-family: "Klee One", "Zen Maru Gothic", serif;
+  font-size: 1.35rem;
+  color: var(--char);
+  line-height: 1.25;
+}
+
+.poem-by {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+/* poem-text language segmented toggle */
+.lang-toggle {
+  flex: none;
+  display: inline-flex;
+  gap: 0.25rem;
+  background: #fff;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.lang-toggle button {
+  margin: 0;
+  padding: 0.32rem 0.85rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.lang-toggle button.active {
+  background: var(--char);
+  color: #fff;
+}
+
+/* body: image left, text right (see image while reading) */
+.poem-inner {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.4rem;
+  padding: 1.3rem 1.4rem 1.5rem;
+  align-items: start;
+}
+
+.poem-inner.no-image {
+  grid-template-columns: 1fr;
+}
+
+.poem-main {
+  min-width: 0;
+}
+
+/* The image follows down while you scroll through a long poem, staying in view
+   beside the text until the card ends. */
+.poem-image-col {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
 }
 
 .poem-image {
-  max-width: 100%;
+  width: 100%;
   border-radius: 14px;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  display: block;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .img-pending,
@@ -218,32 +651,35 @@ button:disabled {
   font-size: 0.85rem;
 }
 
-/* ---- audio ---- */
+/* ---- audio panel ---- */
+/* Sticky so the play controls stay in place (and reachable) while you scroll
+   the poem. Its background is opaque, so text scrolls cleanly underneath. */
 .audio-area {
-  margin: 0 0 1rem;
+  position: sticky;
+  top: 1.5rem;
+  z-index: 2;
+  margin: 0 0 1.1rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--char) 6%, #fff);
+  border: 1px solid color-mix(in srgb, var(--char) 16%, #fff);
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.audio-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.audio-label {
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .audio-area audio {
   width: 100%;
-}
-
-.audio-langs {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
-}
-
-.audio-langs button {
-  margin: 0;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.75rem;
-  background: #f3d3df;
-  color: var(--fg);
-}
-
-.audio-langs button.active {
-  background: var(--char);
-  color: #fff;
+  height: 36px;
 }
 
 .audio-failed {
@@ -252,9 +688,53 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+/* ---- poem text ---- */
+.poem-text {
+  white-space: pre-wrap;
+  margin: 0;
+  padding-left: 1rem;
+  border-left: 3px solid color-mix(in srgb, var(--char) 55%, #fff);
+}
+
+.poem-text[hidden] {
+  display: none;
+}
+
+.poem-text.poem-en {
+  font-family: "EB Garamond", "Zen Maru Gothic", serif;
+  font-style: italic;
+  font-size: 1.16rem;
+  line-height: 1.85;
+  color: #52424c;
+}
+
+.poem-text.poem-ja {
+  font-family: "Zen Maru Gothic", serif;
+  font-size: 1.04rem;
+  line-height: 1.95;
+  color: #52424c;
+}
+
+@media (max-width: 640px) {
+  .poem-inner {
+    grid-template-columns: 1fr;
+  }
+  /* Stacked layout: don't pin the image over the text. */
+  .poem-image-col {
+    position: static;
+  }
+  .poem-image {
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .poem-title {
+    font-size: 1.15rem;
+  }
+}
+
 /* Note shown when the selected language can't be voiced by the backend (#89). */
 .audio-unsupported {
-  margin: 0.3rem 0 0;
+  margin: 0.5rem 0 0;
   color: #8a6d00;
   font-size: 0.8rem;
   line-height: 1.4;
@@ -264,27 +744,30 @@ button:disabled {
 .filters {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.3rem;
 }
 
 .filters button {
   margin: 0;
-  padding: 0.3rem 0.85rem;
+  padding: 0.32rem 0.9rem;
   font-size: 0.8rem;
-  background: #f3d3df;
-  color: var(--fg);
+  background: #fff;
+  color: var(--muted);
+  border: 1.5px solid var(--line);
 }
 
 .filters button.active {
-  background: var(--accent);
+  background: var(--char);
+  border-color: var(--char);
   color: #fff;
 }
 
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
 }
 
 .card {
@@ -292,15 +775,20 @@ button:disabled {
   text-decoration: none;
   color: inherit;
   background: var(--card);
-  border-radius: 14px;
-  border-bottom: 4px solid var(--char);
+  border-radius: 16px;
+  border: 1px solid var(--line);
   overflow: hidden;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-  transition: transform 0.1s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--char) 28%, transparent);
+}
+
+.card-media {
+  position: relative;
 }
 
 .card img,
@@ -315,27 +803,45 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f7e4ec;
-  color: #c98aa6;
-  font-size: 0.8rem;
+  background: color-mix(in srgb, var(--char) 10%, #fff);
+  color: color-mix(in srgb, var(--char) 55%, #fff);
+  font-size: 1.6rem;
+}
+
+.card-char {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--char);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .card-body {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.7rem 0.7rem;
   display: flex;
   flex-direction: column;
+  gap: 0.15rem;
 }
 
 .card-body strong {
   font-size: 0.85rem;
-  white-space: nowrap;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.card-body span {
-  font-size: 0.72rem;
-  opacity: 0.6;
+.card-mood {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: capitalize;
 }
 
 .pager {
@@ -343,11 +849,25 @@ button:disabled {
   gap: 1rem;
   align-items: center;
   justify-content: center;
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
 .pager button {
   margin: 0;
   padding: 0.4rem 1rem;
   font-size: 0.85rem;
+}
+
+.pager span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+@media (max-width: 520px) {
+  .char-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .hero h1 {
+    font-size: 1.6rem;
+  }
 }

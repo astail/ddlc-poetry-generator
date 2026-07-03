@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "./api-base";
+import { CHAR_TAGS, THEME_SUGGESTIONS, langName, useLang, useT } from "./i18n";
 
-const CHARACTERS = ["sayori", "natsuki", "yuri", "monika"] as const;
+const CHARACTERS = [
+  { id: "sayori", name: "Sayori", letter: "S" },
+  { id: "natsuki", name: "Natsuki", letter: "N" },
+  { id: "yuri", name: "Yuri", letter: "Y" },
+  { id: "monika", name: "Monika", letter: "M" },
+] as const;
 
 type Asset = { id: number; status: string; url: string | null; lang?: string };
 
@@ -14,6 +20,7 @@ type Poem = {
   id: number;
   character: string;
   title: string;
+  title_ja?: string | null;
   poem_en: string;
   poem_ja: string;
   mood?: string | null;
@@ -24,9 +31,10 @@ type Poem = {
 const TERMINAL = new Set(["done", "failed"]);
 
 export default function Home() {
+  const { lang } = useLang();
+  const t = useT();
   const [character, setCharacter] = useState<string>("monika");
   const [theme, setTheme] = useState("");
-  const [lang, setLang] = useState("en");
   const [genImage, setGenImage] = useState(true);
   const [genAudio, setGenAudio] = useState(true);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -34,10 +42,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [poem, setPoem] = useState<Poem | null>(null);
-  const [audioLang, setAudioLang] = useState<string | null>(null);
+  // Which language the result card shows. Follows the global mode, but can be
+  // toggled per-poem to compare translations while reading.
+  const [viewLang, setViewLang] = useState<string>(lang);
   // Languages the active TTS backend can voice (#89). Defaults to English only,
   // matching the default Piper/CPU backend, until the API answers.
   const [ttsLangs, setTtsLangs] = useState<string[]>(["en"]);
+  const poemRef = useRef<HTMLElement>(null);
+
+  // Keep the result card in step with the global mode when it changes.
+  useEffect(() => {
+    setViewLang(lang);
+  }, [lang]);
 
   // Load the selectable image models once (#49).
   useEffect(() => {
@@ -53,8 +69,9 @@ export default function Home() {
       });
   }, []);
 
-  // Ask the API which languages can produce audio so we can disable the option
-  // for unsupported ones (e.g. ja on Piper) instead of queuing a doomed job (#89).
+  // Ask the API which languages can produce audio so we can warn when the active
+  // mode's language can't be voiced (e.g. ja on Piper) instead of silently
+  // queuing a doomed job (#89).
   useEffect(() => {
     fetch(`${API_BASE}/api/tts/capabilities`)
       .then((r) => (r.ok ? r.json() : null))
@@ -66,6 +83,8 @@ export default function Home() {
       });
   }, []);
 
+  // Audio is produced in the active mode's language; only possible when the TTS
+  // backend can voice it.
   const audioSupported = ttsLangs.includes(lang);
 
   async function generate(e?: React.FormEvent) {
@@ -73,7 +92,6 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setPoem(null);
-    setAudioLang(null);
     try {
       const res = await fetch(`${API_BASE}/api/generate`, {
         method: "POST",
@@ -89,6 +107,7 @@ export default function Home() {
         }),
       });
       if (!res.ok) throw new Error(`API error ${res.status}`);
+      setViewLang(lang);
       setPoem((await res.json()) as Poem);
     } catch (err) {
       setError(err instanceof Error ? err.message : "request failed");
@@ -115,97 +134,153 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [poem]);
 
+  // Bring a newly generated poem into view (the form stays at the top
+  // otherwise). Keyed on the poem id so polling updates don't re-scroll.
+  const poemId = poem?.id;
+  useEffect(() => {
+    if (poemId != null) {
+      poemRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [poemId]);
+
   const image = poem?.images?.[0];
 
-  const audioLangs = useMemo(
-    () => Array.from(new Set((poem?.audios ?? []).map((a) => a.lang ?? "en"))),
-    [poem],
-  );
+  // The audio matching the currently viewed language (falls back to the first).
   const selectedAudio =
-    (poem?.audios ?? []).find((a) => (a.lang ?? "en") === audioLang) ??
+    (poem?.audios ?? []).find((a) => (a.lang ?? "en") === viewLang) ??
     poem?.audios?.[0];
+
+  const displayTitle = poem
+    ? viewLang === "ja"
+      ? poem.title_ja || poem.title
+      : poem.title
+    : "";
 
   return (
     <main className="container">
-      <h1>DDLC Poetry Generator</h1>
-      <p className="subtitle">unofficial · non-commercial fan project</p>
+      <header className="hero">
+        <h1>Just Poems.</h1>
+        <p className="subtitle">{t("hero.subtitle")}</p>
+      </header>
 
-      <form onSubmit={generate} className="form">
-        <label>
-          キャラクター
-          <select value={character} onChange={(e) => setCharacter(e.target.value)}>
+      <form onSubmit={generate} className="form-card">
+        <div className="field">
+          <div className="label">
+            {t("form.character")}
+            <span className="opt">{t("form.characterOpt")}</span>
+          </div>
+          <div className="char-grid">
             {CHARACTERS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <button
+                key={c.id}
+                type="button"
+                className="char"
+                data-c={c.id}
+                aria-pressed={character === c.id}
+                onClick={() => setCharacter(c.id)}
+              >
+                <span className="check" aria-hidden="true">
+                  ✓
+                </span>
+                <span className="avatar" aria-hidden="true">
+                  {c.letter}
+                </span>
+                <span className="name">{c.name}</span>
+                <span className="tag">{CHAR_TAGS[lang][c.id]}</span>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
 
-        <label>
-          テーマ（任意）
-          <input
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            maxLength={200}
-            placeholder="例: 真夜中の海"
-          />
-        </label>
-
-        <fieldset className="assets">
-          <legend>生成するもの</legend>
-          <label className="checkbox">
+        <div className="field">
+          <div className="label">
+            {t("form.theme")}
+            <span className="opt">{t("form.themeOpt")}</span>
+          </div>
+          <div className="input-wrap">
+            <span className="ico" aria-hidden="true">
+              ✎
+            </span>
             <input
-              type="checkbox"
-              checked={genImage}
-              onChange={(e) => setGenImage(e.target.checked)}
+              type="text"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              maxLength={200}
+              placeholder={t("form.themePlaceholder")}
             />
-            画像を生成
-          </label>
+          </div>
+          <div className="suggestions">
+            {THEME_SUGGESTIONS[lang].map((s) => (
+              <button key={s} type="button" className="chip" onClick={() => setTheme(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {genImage && models.length > 0 && (
-            <label className="model-select">
-              モデル
-              <select value={model} onChange={(e) => setModel(e.target.value)}>
-                {models.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={genAudio}
-              onChange={(e) => setGenAudio(e.target.checked)}
-            />
-            音声を生成
-          </label>
+        <div className="field">
+          <div className="label">{t("form.generateWhat")}</div>
+          <div className="options">
+            <div className="opt-row">
+              <div className="opt-main">
+                <span className="t">{t("form.image")}</span>
+                <span className="d">{t("form.imageDesc")}</span>
+              </div>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={genImage}
+                  onChange={(e) => setGenImage(e.target.checked)}
+                />
+                <span className="track" />
+                <span className="thumb" />
+              </label>
+            </div>
 
-          {genAudio && (
-            <label className="voice-lang-select">
-              音声の言語
-              <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                <option value="en">English（英語）</option>
-                <option value="ja" disabled={!ttsLangs.includes("ja")}>
-                  日本語{ttsLangs.includes("ja") ? "" : "（利用不可）"}
-                </option>
-              </select>
-            </label>
-          )}
-          {genAudio && !ttsLangs.includes("ja") && (
+            {genImage && models.length > 0 && (
+              <div className="sub-select">
+                <label htmlFor="model-select">{t("form.model")}</label>
+                <select
+                  id="model-select"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                >
+                  {models.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="opt-row">
+              <div className="opt-main">
+                <span className="t">{t("form.audio")}</span>
+                <span className="d">{t("form.audioDesc")}</span>
+              </div>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={genAudio}
+                  onChange={(e) => setGenAudio(e.target.checked)}
+                />
+                <span className="track" />
+                <span className="thumb" />
+              </label>
+            </div>
+          </div>
+          {genAudio && !audioSupported && (
             <p className="audio-unsupported" role="note">
-              ※ 日本語の音声生成は、現在のサーバ構成では利用できません。
-              日本語の読み上げにはサーバ側で VOICEVOX を有効化してください（英語は利用できます）。
+              {t("form.audioUnsupported")}
             </p>
           )}
-        </fieldset>
+        </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "生成中…" : "生成"}
+        <button type="submit" className="cta" disabled={loading}>
+          {loading ? t("form.submitting") : t("form.submit")}
         </button>
+        <p className="foot-note">{t("form.footNote")}</p>
       </form>
 
       {error && (
@@ -215,62 +290,84 @@ export default function Home() {
       )}
 
       {poem && (
-        <article className="poem" data-testid="poem" data-char={poem.character}>
-          <h2>
-            {poem.title} <small>— {poem.character}</small>
-          </h2>
-
-          {image && (
-            <div className="image-area" data-testid="image-area">
-              {image.status === "done" && image.url ? (
-                <img src={`${API_BASE}${image.url}`} alt={poem.title} className="poem-image" />
-              ) : image.status === "failed" ? (
-                <div className="img-failed">
-                  画像生成に失敗しました
-                  <button type="button" onClick={() => generate()}>
-                    再生成
-                  </button>
-                </div>
-              ) : (
-                <div className="img-pending">画像を生成中… ({image.status ?? "queued"})</div>
-              )}
+        <article ref={poemRef} className="poem" data-testid="poem" data-char={poem.character}>
+          <div className="poem-head">
+            <span className="poem-avatar" aria-hidden="true">
+              {poem.character.charAt(0).toUpperCase()}
+            </span>
+            <div className="poem-heading">
+              <h2 className="poem-title">{displayTitle}</h2>
+              <div className="poem-by">
+                {poem.character}
+                {poem.mood ? ` · ${poem.mood}` : ""}
+              </div>
             </div>
-          )}
+            <div className="lang-toggle" role="group" aria-label={t("poem.langGroup")}>
+              <button
+                type="button"
+                className={viewLang === "en" ? "active" : ""}
+                onClick={() => setViewLang("en")}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                className={viewLang === "ja" ? "active" : ""}
+                onClick={() => setViewLang("ja")}
+              >
+                日本語
+              </button>
+            </div>
+          </div>
 
-          {(poem.audios?.length ?? 0) > 0 && (
-            <div className="audio-area" data-testid="audio-area">
-              {audioLangs.length > 1 && (
-                <div className="audio-langs">
-                  {audioLangs.map((l) => (
-                    <button
-                      key={l}
-                      type="button"
-                      className={l === (audioLang ?? audioLangs[0]) ? "active" : ""}
-                      onClick={() => setAudioLang(l)}
-                    >
-                      {l.toUpperCase()}
+          <div className={`poem-inner${image ? "" : " no-image"}`}>
+            {image && (
+              <div className="poem-image-col" data-testid="image-area">
+                {image.status === "done" && image.url ? (
+                  <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
+                ) : image.status === "failed" ? (
+                  <div className="img-failed">
+                    {t("poem.imageFailed")}
+                    <button type="button" onClick={() => generate()}>
+                      {t("poem.regenerate")}
                     </button>
-                  ))}
-                </div>
-              )}
-              {selectedAudio?.status === "done" && selectedAudio.url ? (
-                <audio
-                  controls
-                  data-testid="audio-player"
-                  src={`${API_BASE}${selectedAudio.url}`}
-                />
-              ) : selectedAudio?.status === "failed" ? (
-                <div className="audio-failed">音声生成に失敗しました</div>
-              ) : (
-                <div className="audio-pending">
-                  音声を生成中… ({selectedAudio?.status ?? "queued"})
-                </div>
-              )}
-            </div>
-          )}
+                  </div>
+                ) : (
+                  <div className="img-pending">
+                    {t("poem.imagePending")} ({image.status ?? "queued"})
+                  </div>
+                )}
+              </div>
+            )}
 
-          <pre className="poem-text">{poem.poem_en}</pre>
-          <pre className="poem-text poem-ja">{poem.poem_ja}</pre>
+            <div className="poem-main">
+              {(poem.audios?.length ?? 0) > 0 && (
+                <div className="audio-area" data-testid="audio-area">
+                  <div className="audio-head">
+                    <span className="audio-label">
+                      🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
+                    </span>
+                  </div>
+                  {selectedAudio?.status === "done" && selectedAudio.url ? (
+                    <audio
+                      controls
+                      data-testid="audio-player"
+                      src={`${API_BASE}${selectedAudio.url}`}
+                    />
+                  ) : selectedAudio?.status === "failed" ? (
+                    <div className="audio-failed">{t("poem.audioFailed")}</div>
+                  ) : (
+                    <div className="audio-pending">
+                      {t("poem.audioPending")} ({selectedAudio?.status ?? "queued"})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <pre className="poem-text poem-en" hidden={viewLang !== "en"}>{poem.poem_en}</pre>
+              <pre className="poem-text poem-ja" hidden={viewLang !== "ja"}>{poem.poem_ja}</pre>
+            </div>
+          </div>
         </article>
       )}
     </main>

@@ -28,6 +28,7 @@ def test_generate_returns_spec_schema():
     assert isinstance(result, PoemResult)
     # all SPEC §5 fields present and typed
     assert result.title == "Tidewater"
+    assert result.title_ja == "潮汐"  # Japanese title carried through
     assert result.poem_en
     assert result.poem_ja
     assert result.image_prompt
@@ -36,6 +37,18 @@ def test_generate_returns_spec_schema():
     assert result.voice_hints.rate == 0.95
     # character is taken from the input, not the model output
     assert result.character == "yuri"
+
+
+def test_generate_defaults_title_ja_when_omitted():
+    """A model response without title_ja still validates, defaulting to ""."""
+    payload = {k: v for k, v in SAMPLE_POEM.items() if k != "title_ja"}
+    client = FakeClient([text_message(payload)])
+    gen = PoemGenerator(config=_config(), client=client)
+
+    result = gen.generate(Character.YURI, theme="the sea")
+
+    assert result.title == "Tidewater"
+    assert result.title_ja == ""
 
 
 def test_generate_builds_prompt_and_passes_model():

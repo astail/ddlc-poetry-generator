@@ -56,6 +56,7 @@ class Poem(Base):
     theme: Mapped[str | None] = mapped_column(Text, nullable=True)
     lang: Mapped[str] = mapped_column(String(8), default="en")
     title: Mapped[str] = mapped_column(Text)
+    title_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
     poem_en: Mapped[str] = mapped_column(Text)
     poem_ja: Mapped[str] = mapped_column(Text)
     mood: Mapped[str | None] = mapped_column(String(32), nullable=True)
