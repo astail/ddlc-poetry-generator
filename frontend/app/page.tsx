@@ -39,6 +39,8 @@ export default function Home() {
   const [character, setCharacter] = useState<string>("monika");
   const [theme, setTheme] = useState("");
   const [genImage, setGenImage] = useState(true);
+  // Optional extra positive-prompt tags the user can tack onto the image.
+  const [imagePrompt, setImagePrompt] = useState("");
   const [genAudio, setGenAudio] = useState(true);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [model, setModel] = useState<string>("");
@@ -134,6 +136,7 @@ export default function Home() {
           // Don't request audio in a language the backend can't voice (#89).
           generate_audio: genAudio && audioSupported,
           model: model || null,
+          image_prompt_extra: genImage ? imagePrompt.trim() || null : null,
         }),
       });
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -292,6 +295,20 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {genImage && (
+              <div className="sub-select">
+                <label htmlFor="image-extra">{t("form.imagePromptExtra")}</label>
+                <textarea
+                  id="image-extra"
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder={t("form.imagePromptExtraPlaceholder")}
+                />
               </div>
             )}
 

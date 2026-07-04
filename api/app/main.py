@@ -137,6 +137,10 @@ class GenerateRequest(BaseModel):
     # Image checkpoint to use. None = the configured default. Validated against
     # the allow-list (#49); unknown names are rejected (422).
     model: Optional[str] = Field(default=None, max_length=200)
+    # Optional extra positive-prompt tags supplied by the user, appended to the
+    # model-generated image prompt (still gets the mandatory quality prefix and
+    # base negative in the worker). Ignored when generate_image is false.
+    image_prompt_extra: Optional[str] = Field(default=None, max_length=500)
 
 
 # ---------------------------------------------------------------- response models
@@ -287,6 +291,7 @@ def generate(
         generate_image=req.generate_image,
         generate_audio=req.generate_audio,
         image_checkpoint=image_model,
+        image_prompt_extra=req.image_prompt_extra,
     )
     return _detail(poem)
 

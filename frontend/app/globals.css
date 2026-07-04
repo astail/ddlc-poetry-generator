@@ -437,6 +437,23 @@ h2 {
   border-color: var(--accent);
 }
 
+.form-card textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 2px solid var(--line-soft);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--fg);
+  resize: vertical;
+}
+
+.form-card textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* ---- shared button base ---- */
 button {
   margin-top: 0.3rem;

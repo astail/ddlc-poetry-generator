@@ -27,6 +27,7 @@ class GenerationService:
         generate_image: bool = True,
         generate_audio: bool = True,
         image_checkpoint: Optional[str] = None,
+        image_prompt_extra: Optional[str] = None,
     ) -> Poem:
         result = self.generator.generate(character, theme)
         poem, jobs = persist_poem(
@@ -38,6 +39,7 @@ class GenerationService:
             image_checkpoint=image_checkpoint,
             generate_image=generate_image,
             generate_audio=generate_audio,
+            image_prompt_extra=image_prompt_extra,
         )
         for job in jobs:
             self.queue.enqueue(job.type, job.id)
