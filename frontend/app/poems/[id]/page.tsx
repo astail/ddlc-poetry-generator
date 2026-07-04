@@ -110,6 +110,8 @@ export default function PoemDetailPage() {
                   </div>
                   {selectedAudio?.status === "done" && selectedAudio.url ? (
                     <audio controls src={`${API_BASE}${selectedAudio.url}`} />
+                  ) : selectedAudio?.status === "failed" ? (
+                    <div className="audio-failed">{t("poem.audioFailed")}</div>
                   ) : (
                     <div className="audio-pending">
                       {t("poem.audio")}: {selectedAudio?.status ?? "-"}
@@ -122,6 +124,8 @@ export default function PoemDetailPage() {
                 <div className="poem-image-col">
                   {image.status === "done" && image.url ? (
                     <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
+                  ) : image.status === "failed" ? (
+                    <div className="img-failed">{t("poem.imageFailed")}</div>
                   ) : (
                     <div className="img-pending">
                       {t("poem.image")}: {image.status ?? "-"}
