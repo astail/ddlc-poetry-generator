@@ -326,6 +326,13 @@ h2 {
   color: var(--accent);
 }
 
+.chip[aria-pressed="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 /* ---- generate options ---- */
 .options {
   border: 1.5px solid var(--line);

@@ -159,10 +159,54 @@ export const CHAR_TAGS: Record<Lang, Record<string, string>> = {
   },
 };
 
-export const THEME_SUGGESTIONS: Record<Lang, string[]> = {
-  ja: ["真夜中の海", "放課後の教室", "桜", "雨と紅茶", "遠い約束"],
-  en: ["Midnight sea", "After-school classroom", "Cherry blossoms", "Rain and tea", "A distant promise"],
+// A pool of theme words drawn from DDLC's poem-writing minigame, spanning the
+// girls' preferences: Sayori (warmth / emotion / weather), Yuri (fantasy &
+// unsettling), Natsuki (cute & simple), plus a few Monika-ish meta touches. The
+// two arrays are strictly index-aligned. We show a random handful each visit so
+// the suggestions feel fresh — echoing the word-picking game the app is built on.
+// (Sourced from the DDLC+ poem word list; the most graphic words are omitted.)
+export const THEME_POOL: Record<Lang, string[]> = {
+  ja: [
+    // Sayori-ish: warmth, emotion, weather
+    "バラ", "蛍", "花火", "虹", "海", "夕焼け", "陽だまり", "花", "音楽", "冒険",
+    "宝物", "思い出", "幸せ", "希望", "笑顔", "親友", "約束", "抱擁", "温もり", "幼い日",
+    // Yuri-ish: fantasy, longing, the unsettling
+    "白昼夢", "涙", "悲しみ", "孤独", "夢", "幻想", "檻", "憂鬱", "執着", "深紅",
+    "永遠", "無限", "宇宙", "運命", "旋風", "渇望", "星空", "月明かり", "雨", "雨雲",
+    "風景", "肖像", "苦悶", "絶望", "恐怖", "悪夢", "不安", "ナイフ", "片想い", "沈黙",
+    // Natsuki-ish: cute & simple
+    "リボン", "パフェ", "いちご", "ピンク", "バニラ", "キャンディ", "マシュマロ", "チョコレート", "カップケーキ", "うさぎ",
+    "子猫", "子犬", "かわいい", "ふわふわ", "きらめき", "どきどき", "メロディー", "しゃぼん玉", "砂糖", "夏",
+    // Monika-ish / club atmosphere
+    "パステル", "放課後の教室", "文芸部", "現実の裂け目",
+  ],
+  en: [
+    "Rose", "Firefly", "Fireworks", "Rainbow", "Sea", "Sunset", "Sunshine", "Flower", "Music", "Adventure",
+    "Treasure", "Memory", "Happiness", "Hope", "Smile", "Best friends", "A promise", "Embrace", "Warmth", "Childhood",
+    "Daydream", "Tears", "Sorrow", "Loneliness", "Dream", "Fantasy", "A cage", "Melancholy", "Obsession", "Crimson",
+    "Eternity", "Infinity", "The universe", "Fate", "Whirlwind", "Craving", "Starry sky", "Moonlight", "Rain", "Rain cloud",
+    "Scenery", "A portrait", "Agony", "Despair", "Horror", "Nightmare", "Anxiety", "A knife", "Unrequited love", "Silence",
+    "Ribbon", "Parfait", "Strawberry", "Pink", "Vanilla", "Candy", "Marshmallow", "Chocolate", "Cupcakes", "Rabbit",
+    "Kitten", "Puppy", "Cute", "Fluffy", "Sparkle", "Doki-doki", "Melody", "Bubbles", "Sugar", "Summer",
+    "Pastel colors", "After-school classroom", "Literature club", "A crack in reality",
+  ],
 };
+
+// Pick `n` distinct random themes for the given language. Called on the client
+// (in an effect) so each visit surfaces a different set of chips.
+export function pickThemeSuggestions(lang: Lang, n = 5): string[] {
+  const pool = THEME_POOL[lang];
+  const used = new Set<number>();
+  const picked: string[] = [];
+  const count = Math.min(n, pool.length);
+  while (picked.length < count) {
+    const i = Math.floor(Math.random() * pool.length);
+    if (used.has(i)) continue;
+    used.add(i);
+    picked.push(pool[i]);
+  }
+  return picked;
+}
 
 // Human-readable name of a content language, expressed in the active UI language.
 export function langName(t: (k: StringKey) => string, contentLang: string): string {
