@@ -117,8 +117,7 @@ def test_generate_appends_user_image_prompt(client):
         img = s.query(Image).one()
         # User tags are appended to the model-generated prompt (SAMPLE_POEM).
         assert img.prompt == (
-            "1girl, purple hair, moonlit shore, waves, melancholic, "
-            "cherry blossoms, soft light"
+            "1girl, purple hair, moonlit shore, waves, melancholic, cherry blossoms, soft light"
         )
 
 
