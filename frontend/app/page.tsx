@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "./api-base";
-import { CHAR_TAGS, THEME_SUGGESTIONS, langName, useLang, useT } from "./i18n";
+import { CHAR_TAGS, THEME_POOL, langName, pickThemeSuggestions, useLang, useT } from "./i18n";
 
 const CHARACTERS = [
   { id: "sayori", name: "Sayori", letter: "S" },
@@ -30,6 +30,9 @@ type Poem = {
 
 const TERMINAL = new Set(["done", "failed"]);
 
+// How many random theme chips to surface at once.
+const SUGGESTION_COUNT = 10;
+
 export default function Home() {
   const { lang } = useLang();
   const t = useT();
@@ -50,10 +53,37 @@ export default function Home() {
   const [ttsLangs, setTtsLangs] = useState<string[]>(["en"]);
   const poemRef = useRef<HTMLElement>(null);
 
+  // Theme example chips: a random handful drawn from the DDLC poem-word pool.
+  // Seeded with a deterministic slice so server and client render the same markup
+  // (no hydration flash); randomized in the effect below once we're on the client.
+  const [suggestions, setSuggestions] = useState<string[]>(() =>
+    THEME_POOL[lang].slice(0, SUGGESTION_COUNT),
+  );
+  // Chips are multi-select: the set of picked suggestions, composed into `theme`.
+  const [selected, setSelected] = useState<string[]>([]);
+
   // Keep the result card in step with the global mode when it changes.
   useEffect(() => {
     setViewLang(lang);
   }, [lang]);
+
+  // Re-roll the suggestion chips on mount and whenever the language switches.
+  // The visible chips change, so drop any stale selection highlight (the text
+  // already typed into the theme field is left untouched).
+  useEffect(() => {
+    setSuggestions(pickThemeSuggestions(lang, SUGGESTION_COUNT));
+    setSelected([]);
+  }, [lang]);
+
+  // Toggle a suggestion in/out of the selection and recompose the theme field
+  // from the picks, joined for the active language.
+  function toggleSuggestion(s: string) {
+    const next = selected.includes(s)
+      ? selected.filter((x) => x !== s)
+      : [...selected, s];
+    setSelected(next);
+    setTheme(next.join(lang === "ja" ? "、" : ", "));
+  }
 
   // Load the selectable image models once (#49).
   useEffect(() => {
@@ -204,14 +234,25 @@ export default function Home() {
             <input
               type="text"
               value={theme}
-              onChange={(e) => setTheme(e.target.value)}
+              onChange={(e) => {
+                // Manual edits take over; drop the chip highlight so it can't
+                // misrepresent the (now hand-edited) text.
+                setTheme(e.target.value);
+                setSelected([]);
+              }}
               maxLength={200}
               placeholder={t("form.themePlaceholder")}
             />
           </div>
           <div className="suggestions">
-            {THEME_SUGGESTIONS[lang].map((s) => (
-              <button key={s} type="button" className="chip" onClick={() => setTheme(s)}>
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className="chip"
+                aria-pressed={selected.includes(s)}
+                onClick={() => toggleSuggestion(s)}
+              >
                 {s}
               </button>
             ))}
