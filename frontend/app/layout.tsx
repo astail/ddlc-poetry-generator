@@ -11,11 +11,11 @@ export function generateMetadata(): Metadata {
   const lang = resolveLang(cookies().get(LANG_COOKIE)?.value);
   return lang === "ja"
     ? {
-        title: "DDLC 詩ジェネレーター",
+        title: "Just Poems",
         description: "非公式・非営利の DDLC ファン詩ジェネレーター",
       }
     : {
-        title: "DDLC Poetry Generator",
+        title: "Just Poems",
         description: "Unofficial, non-commercial DDLC fan poem generator",
       };
 }
