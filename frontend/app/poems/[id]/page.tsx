@@ -99,36 +99,40 @@ export default function PoemDetailPage() {
         </div>
 
         <div className={`poem-inner${image ? "" : " no-image"}`}>
-          {image && (
-            <div className="poem-image-col">
-              {image.status === "done" && image.url ? (
-                <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
-              ) : (
-                <div className="img-pending">
-                  {t("poem.image")}: {image.status ?? "-"}
+          {(image || (poem.audios?.length ?? 0) > 0) && (
+            <div className="poem-pinned">
+              {(poem.audios?.length ?? 0) > 0 && (
+                <div className="audio-area">
+                  <div className="audio-head">
+                    <span className="audio-label">
+                      🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
+                    </span>
+                  </div>
+                  {selectedAudio?.status === "done" && selectedAudio.url ? (
+                    <audio controls src={`${API_BASE}${selectedAudio.url}`} />
+                  ) : (
+                    <div className="audio-pending">
+                      {t("poem.audio")}: {selectedAudio?.status ?? "-"}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {image && (
+                <div className="poem-image-col">
+                  {image.status === "done" && image.url ? (
+                    <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
+                  ) : (
+                    <div className="img-pending">
+                      {t("poem.image")}: {image.status ?? "-"}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
           <div className="poem-main">
-            {(poem.audios?.length ?? 0) > 0 && (
-              <div className="audio-area">
-                <div className="audio-head">
-                  <span className="audio-label">
-                    🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
-                  </span>
-                </div>
-                {selectedAudio?.status === "done" && selectedAudio.url ? (
-                  <audio controls src={`${API_BASE}${selectedAudio.url}`} />
-                ) : (
-                  <div className="audio-pending">
-                    {t("poem.audio")}: {selectedAudio?.status ?? "-"}
-                  </div>
-                )}
-              </div>
-            )}
-
             <pre className="poem-text poem-en" hidden={viewLang !== "en"}>{poem.poem_en}</pre>
             <pre className="poem-text poem-ja" hidden={viewLang !== "ja"}>{poem.poem_ja}</pre>
           </div>
