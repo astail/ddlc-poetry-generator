@@ -362,49 +362,53 @@ export default function Home() {
           </div>
 
           <div className={`poem-inner${image ? "" : " no-image"}`}>
-            {image && (
-              <div className="poem-image-col" data-testid="image-area">
-                {image.status === "done" && image.url ? (
-                  <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
-                ) : image.status === "failed" ? (
-                  <div className="img-failed">
-                    {t("poem.imageFailed")}
-                    <button type="button" onClick={() => generate()}>
-                      {t("poem.regenerate")}
-                    </button>
+            {(image || (poem.audios?.length ?? 0) > 0) && (
+              <div className="poem-pinned">
+                {(poem.audios?.length ?? 0) > 0 && (
+                  <div className="audio-area" data-testid="audio-area">
+                    <div className="audio-head">
+                      <span className="audio-label">
+                        🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
+                      </span>
+                    </div>
+                    {selectedAudio?.status === "done" && selectedAudio.url ? (
+                      <audio
+                        controls
+                        data-testid="audio-player"
+                        src={`${API_BASE}${selectedAudio.url}`}
+                      />
+                    ) : selectedAudio?.status === "failed" ? (
+                      <div className="audio-failed">{t("poem.audioFailed")}</div>
+                    ) : (
+                      <div className="audio-pending">
+                        {t("poem.audioPending")} ({selectedAudio?.status ?? "queued"})
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="img-pending">
-                    {t("poem.imagePending")} ({image.status ?? "queued"})
+                )}
+
+                {image && (
+                  <div className="poem-image-col" data-testid="image-area">
+                    {image.status === "done" && image.url ? (
+                      <img src={`${API_BASE}${image.url}`} alt={displayTitle} className="poem-image" />
+                    ) : image.status === "failed" ? (
+                      <div className="img-failed">
+                        {t("poem.imageFailed")}
+                        <button type="button" onClick={() => generate()}>
+                          {t("poem.regenerate")}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="img-pending">
+                        {t("poem.imagePending")} ({image.status ?? "queued"})
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
             <div className="poem-main">
-              {(poem.audios?.length ?? 0) > 0 && (
-                <div className="audio-area" data-testid="audio-area">
-                  <div className="audio-head">
-                    <span className="audio-label">
-                      🔊 {t("poem.narration")}（{langName(t, selectedAudio?.lang ?? viewLang)}）
-                    </span>
-                  </div>
-                  {selectedAudio?.status === "done" && selectedAudio.url ? (
-                    <audio
-                      controls
-                      data-testid="audio-player"
-                      src={`${API_BASE}${selectedAudio.url}`}
-                    />
-                  ) : selectedAudio?.status === "failed" ? (
-                    <div className="audio-failed">{t("poem.audioFailed")}</div>
-                  ) : (
-                    <div className="audio-pending">
-                      {t("poem.audioPending")} ({selectedAudio?.status ?? "queued"})
-                    </div>
-                  )}
-                </div>
-              )}
-
               <pre className="poem-text poem-en" hidden={viewLang !== "en"}>{poem.poem_en}</pre>
               <pre className="poem-text poem-ja" hidden={viewLang !== "ja"}>{poem.poem_ja}</pre>
             </div>

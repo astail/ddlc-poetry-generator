@@ -605,26 +605,42 @@ button:disabled {
   color: #fff;
 }
 
-/* body: image left, text right (see image while reading) */
+/* Desktop: image left (full height), audio + text stacked on the right. The
+   audio panel and image live in a `.poem-pinned` wrapper which is `display:
+   contents` here, so both take part directly in this grid via their named
+   areas. On mobile that wrapper collapses into a single pinned block instead
+   (see the media query below). */
 .poem-inner {
   display: grid;
   grid-template-columns: 300px 1fr;
-  gap: 1.4rem;
+  grid-template-areas:
+    "image audio"
+    "image text";
+  column-gap: 1.4rem;
   padding: 1.3rem 1.4rem 1.5rem;
   align-items: start;
 }
 
 .poem-inner.no-image {
   grid-template-columns: 1fr;
+  grid-template-areas:
+    "audio"
+    "text";
+}
+
+.poem-pinned {
+  display: contents;
 }
 
 .poem-main {
+  grid-area: text;
   min-width: 0;
 }
 
 /* The image follows down while you scroll through a long poem, staying in view
    beside the text until the card ends. */
 .poem-image-col {
+  grid-area: image;
   position: sticky;
   top: 1.5rem;
   align-self: start;
@@ -662,6 +678,7 @@ button:disabled {
 /* Sticky so the play controls stay in place (and reachable) while you scroll
    the poem. Its background is opaque, so text scrolls cleanly underneath. */
 .audio-area {
+  grid-area: audio;
   position: sticky;
   top: 1.5rem;
   z-index: 2;
@@ -723,15 +740,41 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+  /* Single column: drop the grid so the pinned wrapper and the text simply
+     stack in flow. */
   .poem-inner {
-    grid-template-columns: 1fr;
+    display: block;
   }
-  /* Stacked layout: don't pin the image over the text. */
+  /* Pin the audio + image together as one block at the top of the viewport so
+     both stay visible while the poem text scrolls beneath. The audio panel sits
+     above the image (their order inside the wrapper). Sizing the wrapper by its
+     own content means we never have to guess the image or audio height. The
+     card-coloured background + z-index let the text scroll cleanly underneath. */
+  .poem-pinned {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--card);
+    padding: 0.4rem 0 0.6rem;
+    box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.25);
+  }
+  /* The wrapper does the pinning now, so un-stick its children. */
+  .audio-area {
+    position: static;
+    z-index: auto;
+    margin: 0 0 0.6rem;
+  }
   .poem-image-col {
     position: static;
+    top: auto;
   }
   .poem-image {
+    /* Cap the image height so the pinned block (audio + image) still leaves
+       room to read the poem beneath it; width auto keeps the aspect ratio. */
+    width: auto;
     max-width: 360px;
+    max-height: 30vh;
     margin: 0 auto;
   }
   .poem-title {
