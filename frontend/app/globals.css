@@ -63,17 +63,6 @@ h2 {
   box-shadow: 0 2px 14px rgba(227, 93, 138, 0.26);
 }
 
-.nav .brand {
-  margin-right: auto;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #fff;
-  font-family: "Klee One", "Zen Maru Gothic", serif;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 .nav a {
   color: #fff;
   text-decoration: none;
@@ -88,6 +77,9 @@ h2 {
 
 /* global EN / 日本語 mode switch, sitting on the pink nav bar */
 .lang-switch {
+  /* Push the switch to the right edge of the nav. The brand used to do this
+     with `margin-right: auto`; it has been removed, so the switch owns it now. */
+  margin-left: auto;
   display: inline-flex;
   gap: 0.2rem;
   padding: 0.2rem;
