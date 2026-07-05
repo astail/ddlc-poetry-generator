@@ -17,6 +17,7 @@ from typing import Callable, Optional
 
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Image, Job, JobStatus
+from .observability import configure_logging, init_error_tracking
 from .queue import queue_key, redis_from_url
 from .worker_common import (
     MAINTENANCE_INTERVAL_SECONDS,
@@ -166,7 +167,8 @@ def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
+    init_error_tracking()
     build_worker().run()
 
 
