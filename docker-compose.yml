@@ -8,6 +8,10 @@
 # unset/empty instead of silently shipping a weak credential. Shared by api +
 # workers via `environment`.
 x-app-env: &app-env
+  # Mark the runtime as production so a missing DATABASE_URL fails fast instead of
+  # silently falling back to a throwaway in-memory SQLite (#125). DATABASE_URL is
+  # always provided below, so this only bites a misconfiguration.
+  APP_ENV: production
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ddlc}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (no default; see .env.example)}@db:5432/${POSTGRES_DB:-ddlc_poems}
   REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (no default; see .env.example)}@redis:6379/0
 
