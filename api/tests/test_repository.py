@@ -1,7 +1,7 @@
 """Unit tests for repository helpers."""
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -89,3 +89,29 @@ def test_delete_poem_tolerates_missing_files(session, tmp_path):
     img_file.unlink()  # file already gone; delete must not raise
     assert delete_poem(session, poem.id, tmp_path) is True
     assert session.get(Poem, poem.id) is None
+
+
+def test_delete_poem_leaves_other_poems_jobs_intact(session, tmp_path):
+    """Deleting one poem removes only its jobs — no orphaned or collateral jobs
+    for other poems (the FK-less jobs are cleaned up by (type, ref_id))."""
+    poem_a, *_ = _poem_with_assets(session, tmp_path)
+    poem_b, *_ = _poem_with_assets(session, tmp_path)
+    b_image_ids = {i.id for i in poem_b.images}
+    b_audio_ids = {a.id for a in poem_b.audios}
+    assert session.query(Job).count() == 4
+
+    assert delete_poem(session, poem_a.id, tmp_path) is True
+
+    remaining = session.query(Job).all()
+    assert len(remaining) == 2  # only poem_b's jobs survive
+    for j in remaining:
+        expected = b_image_ids if j.type == JobType.IMAGE.value else b_audio_ids
+        assert j.ref_id in expected
+
+
+def test_jobs_have_composite_type_status_index():
+    """The (type, status) composite index backing queue/reconcile scans exists."""
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    names = {idx["name"] for idx in inspect(engine).get_indexes("jobs")}
+    assert "ix_jobs_type_status" in names

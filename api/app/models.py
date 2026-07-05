@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -145,10 +145,23 @@ class Audio(Base):
 
 
 class Job(Base):
+    """Async work item for one asset (image/audio).
+
+    ``jobs`` deliberately has **no** FK to images/audios: a job references its
+    asset polymorphically by ``(type, ref_id)`` — ``ref_id`` points to *either* an
+    image or an audio depending on ``type`` — which a single native FK cannot
+    express. Referential cleanup is therefore explicit: ``repository.delete_poem``
+    deletes a poem's jobs by ``(type, ref_id)`` alongside the cascaded asset rows,
+    so no orphan job is left behind (covered by tests/test_repository.py). The
+    composite ``(type, status)`` index backs the queue-scan / reconcile queries
+    that filter on both columns.
+    """
+
     __tablename__ = "jobs"
     __table_args__ = (
         CheckConstraint(_sql_in("type", _JOB_TYPES), name="ck_jobs_type"),
         CheckConstraint(_sql_in("status", _JOB_STATUSES), name="ck_jobs_status"),
+        Index("ix_jobs_type_status", "type", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
