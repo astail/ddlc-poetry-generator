@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  // CI/build gate is type-checking; lint runs locally via `npm run lint`.
-  eslint: { ignoreDuringBuilds: true },
+  // Next 16 removed build-time ESLint integration (and `next lint`); linting is
+  // a separate step (`npm run lint` -> `eslint .`, run in CI).
 };
 
 export default nextConfig;
