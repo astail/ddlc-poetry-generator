@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+import os
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .assets import resolve_under
 from .models import Audio, Image, Job, JobType, Poem
 from .schemas import PoemResult
+
+logger = logging.getLogger(__name__)
 
 
 def combine_image_prompt(base: str, extra: Optional[str]) -> str:
@@ -104,6 +110,55 @@ def get_poems(
 
 def get_poem(session: Session, poem_id: int) -> Optional[Poem]:
     return session.get(Poem, poem_id)
+
+
+def _remove_asset_file(data_dir: Path, kind: str, path: Optional[str]) -> None:
+    """Best-effort delete of a generated asset file under ``data_dir/kind``.
+
+    Mirrors how assets are served (``data_dir/<kind>/<basename>``) and reuses
+    ``resolve_under`` to stay inside the data dir. A missing/removed file is not
+    an error — the DB row is going away regardless.
+    """
+    if not path:
+        return
+    target = resolve_under(data_dir, f"{kind}/{os.path.basename(path)}")
+    if target is not None and target.is_file():
+        try:
+            target.unlink()
+        except OSError:
+            logger.warning("failed to remove asset file %s", target)
+
+
+def delete_poem(session: Session, poem_id: int, data_dir: Path) -> bool:
+    """Delete a poem, its asset rows/files, and its (FK-less) jobs.
+
+    Returns False if the poem does not exist. Image/Audio rows cascade off the
+    poem, but Job rows reference assets only by ``(type, ref_id)`` with no FK, so
+    they are deleted explicitly here to avoid orphans.
+    """
+    poem = session.get(Poem, poem_id)
+    if poem is None:
+        return False
+
+    for img in poem.images:
+        _remove_asset_file(data_dir, "images", img.path)
+    for aud in poem.audios:
+        _remove_asset_file(data_dir, "audio", aud.path)
+
+    image_ids = [i.id for i in poem.images]
+    audio_ids = [a.id for a in poem.audios]
+    if image_ids:
+        session.query(Job).filter(
+            Job.type == JobType.IMAGE.value, Job.ref_id.in_(image_ids)
+        ).delete(synchronize_session=False)
+    if audio_ids:
+        session.query(Job).filter(
+            Job.type == JobType.AUDIO.value, Job.ref_id.in_(audio_ids)
+        ).delete(synchronize_session=False)
+
+    session.delete(poem)  # cascades to Image/Audio rows
+    session.commit()
+    return True
 
 
 def get_stats(session: Session) -> dict:

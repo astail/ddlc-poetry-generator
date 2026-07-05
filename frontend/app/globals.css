@@ -846,6 +846,38 @@ button:disabled {
   box-shadow: 0 10px 24px color-mix(in srgb, var(--char) 28%, transparent);
 }
 
+/* Wraps the card link so the delete button can sit over it without nesting a
+   <button> inside the <a>. */
+.card-wrap {
+  position: relative;
+}
+
+/* Delete button, pinned to the card's top-right. Always visible (hover-only
+   would hide it on touch devices). */
+.card-del {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 2;
+  margin: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #b00020;
+  font-size: 0.9rem;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.card-del:hover {
+  background: #fff;
+  transform: scale(1.06);
+}
+
 .card-media {
   position: relative;
 }

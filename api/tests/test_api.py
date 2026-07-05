@@ -132,6 +132,21 @@ def test_generate_blank_image_prompt_is_ignored(client):
         assert img.prompt == "1girl, purple hair, moonlit shore, waves, melancholic"
 
 
+def test_delete_poem_removes_it(client):
+    poem_id = client.post("/api/generate", json={"character": "yuri"}).json()["id"]
+    r = client.delete(f"/api/poems/{poem_id}")
+    assert r.status_code == 204, r.text
+    # gone from the API and the DB (poem + its jobs)
+    assert client.get(f"/api/poems/{poem_id}").status_code == 404
+    with client.session_local() as s:
+        assert s.query(Poem).count() == 0
+        assert s.query(Job).count() == 0
+
+
+def test_delete_missing_poem_returns_404(client):
+    assert client.delete("/api/poems/424242").status_code == 404
+
+
 def test_generate_rejects_unknown_model(client):
     r = client.post(
         "/api/generate",

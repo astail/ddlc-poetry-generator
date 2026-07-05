@@ -51,6 +51,17 @@ export default function Gallery() {
   const cardTitle = (p: Summary) =>
     lang === "ja" ? p.title_ja || p.title : p.title;
 
+  // Delete a poem (and its assets) after confirming, then drop it from the list.
+  async function handleDelete(id: number) {
+    if (!window.confirm(t("gallery.deleteConfirm"))) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/poems/${id}`, { method: "DELETE" });
+      if (res.ok) setItems((prev) => prev.filter((x) => x.id !== id));
+    } catch {
+      /* leave the card in place if the request fails */
+    }
+  }
+
   return (
     <main className="container">
       <header className="hero">
@@ -82,22 +93,33 @@ export default function Gallery() {
       ) : (
         <div className="gallery-grid">
           {items.map((p) => (
-            <Link key={p.id} href={`/poems/${p.id}`} className="card" data-char={p.character}>
-              <div className="card-media">
-                {p.image_status === "done" && p.image_url ? (
-                  <img src={`${API_BASE}${p.image_url}`} alt={cardTitle(p)} />
-                ) : (
-                  <div className="card-noimg" role="img" aria-label={t("gallery.noImage")}>
-                    🌸
-                  </div>
-                )}
-                <span className="card-char">{p.character}</span>
-              </div>
-              <div className="card-body">
-                <strong>{cardTitle(p)}</strong>
-                {p.mood && <span className="card-mood">{p.mood}</span>}
-              </div>
-            </Link>
+            <div key={p.id} className="card-wrap" data-char={p.character}>
+              <Link href={`/poems/${p.id}`} className="card" data-char={p.character}>
+                <div className="card-media">
+                  {p.image_status === "done" && p.image_url ? (
+                    <img src={`${API_BASE}${p.image_url}`} alt={cardTitle(p)} />
+                  ) : (
+                    <div className="card-noimg" role="img" aria-label={t("gallery.noImage")}>
+                      🌸
+                    </div>
+                  )}
+                  <span className="card-char">{p.character}</span>
+                </div>
+                <div className="card-body">
+                  <strong>{cardTitle(p)}</strong>
+                  {p.mood && <span className="card-mood">{p.mood}</span>}
+                </div>
+              </Link>
+              <button
+                type="button"
+                className="card-del"
+                aria-label={t("gallery.delete")}
+                title={t("gallery.delete")}
+                onClick={() => handleDelete(p.id)}
+              >
+                🗑
+              </button>
+            </div>
           ))}
         </div>
       )}
