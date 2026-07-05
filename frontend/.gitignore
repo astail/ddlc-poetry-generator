@@ -4,3 +4,7 @@ out/
 npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# test / type-check artifacts
+coverage/
+*.tsbuildinfo

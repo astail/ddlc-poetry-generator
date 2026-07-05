@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "./api-base";
 import { CHAR_TAGS, THEME_POOL, langName, pickThemeSuggestions, useLang, useT } from "./i18n";
+import { canVoiceLang, hasPendingAssets } from "./poem-utils";
 
 const CHARACTERS = [
   { id: "sayori", name: "Sayori", letter: "S" },
@@ -27,8 +28,6 @@ type Poem = {
   images: Asset[];
   audios: Asset[];
 };
-
-const TERMINAL = new Set(["done", "failed"]);
 
 // How many random theme chips to surface at once.
 const SUGGESTION_COUNT = 10;
@@ -125,7 +124,7 @@ export default function Home() {
 
   // Audio is produced in the active mode's language; only possible when the TTS
   // backend can voice it.
-  const audioSupported = ttsLangs.includes(lang);
+  const audioSupported = canVoiceLang(ttsLangs, lang);
 
   async function generate(e?: React.FormEvent) {
     e?.preventDefault();
@@ -160,9 +159,7 @@ export default function Home() {
   // Poll until both the image and the audio are ready (or failed).
   useEffect(() => {
     if (!poem) return;
-    const pending = [...poem.images, ...poem.audios].some(
-      (a) => !TERMINAL.has(a.status),
-    );
+    const pending = hasPendingAssets([...poem.images, ...poem.audios]);
     if (!pending) return;
     const timer = setTimeout(async () => {
       try {
