@@ -151,9 +151,17 @@ def test_asset_serving(client, tmp_path):
         r = client.get("/api/assets/images/x.txt")
         assert r.status_code == 200
         assert r.text == "hello"
+        assert r.headers["x-content-type-options"] == "nosniff"  # served asset (#118)
         assert client.get("/api/assets/images/missing.txt").status_code == 404
     finally:
         app.dependency_overrides.pop(get_data_dir, None)
+
+
+def test_security_headers_applied_to_all_responses(client):
+    """The nosniff header is a blanket middleware, so JSON endpoints get it too."""
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.headers["x-content-type-options"] == "nosniff"
 
 
 def test_tts_capabilities_default_piper(client, monkeypatch):

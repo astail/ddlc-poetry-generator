@@ -68,6 +68,16 @@ app.add_middleware(
 )
 
 
+# Stop browsers from MIME-sniffing a response (a served asset or a JSON body) into
+# something executable. Cheap, blanket header on every response (#118). setdefault
+# so a handler that sets its own value still wins.
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
 def enforce_rate_limit(
     request: Request,
     limiter: RateLimiter = Depends(get_rate_limiter),
