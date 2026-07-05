@@ -35,6 +35,7 @@ export default function Gallery() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data-fetching effect: mark loading before the async request
     setLoading(true);
     const params = new URLSearchParams({
       limit: String(PAGE_SIZE),

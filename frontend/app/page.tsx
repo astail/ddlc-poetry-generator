@@ -64,17 +64,25 @@ export default function Home() {
   // Chips are multi-select: the set of picked suggestions, composed into `theme`.
   const [selected, setSelected] = useState<string[]>([]);
 
-  // Keep the result card in step with the global mode when it changes.
-  useEffect(() => {
+  // Keep the result card in step with the global mode when it changes. Done
+  // during render (React's "adjust state when a value changes" pattern) instead
+  // of in an effect, so switching language doesn't schedule an extra commit.
+  const [prevLang, setPrevLang] = useState(lang);
+  if (prevLang !== lang) {
+    setPrevLang(lang);
     setViewLang(lang);
-  }, [lang]);
+  }
 
   // Re-roll the suggestion chips on mount and whenever the language switches.
   // The visible chips change, so drop any stale selection highlight (the text
   // already typed into the theme field is left untouched).
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect --
+       Post-mount randomization: a render-time Math.random would differ between
+       server and client and break hydration, so the re-roll must run here. */
     setSuggestions(pickThemeSuggestions(lang, SUGGESTION_COUNT));
     setSelected([]);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [lang]);
 
   // Toggle a suggestion in/out of the selection and recompose the theme field
