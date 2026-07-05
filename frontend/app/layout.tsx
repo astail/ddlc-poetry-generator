@@ -7,8 +7,9 @@ import SiteNav from "./site-nav";
 
 // Reading the cookie makes rendering dynamic (per-request), which is what we
 // want: the language is a user preference, not a build-time constant.
-export function generateMetadata(): Metadata {
-  const lang = resolveLang(cookies().get(LANG_COOKIE)?.value);
+export async function generateMetadata(): Promise<Metadata> {
+  // Next 15+: cookies() is async and must be awaited.
+  const lang = resolveLang((await cookies()).get(LANG_COOKIE)?.value);
   return lang === "ja"
     ? {
         title: "Just Poems",
@@ -20,12 +21,12 @@ export function generateMetadata(): Metadata {
       };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const lang = resolveLang(cookies().get(LANG_COOKIE)?.value);
+  const lang = resolveLang((await cookies()).get(LANG_COOKIE)?.value);
   return (
     <html lang={lang}>
       <body>
