@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -33,7 +33,7 @@ from .image_models import resolve as resolve_image_model
 from .models import Poem
 from .queue import JobQueue
 from .ratelimit import RateLimiter
-from .repository import get_poem, get_poems, get_stats
+from .repository import delete_poem, get_poem, get_poems, get_stats
 from .service import GenerationService
 from .voices import supported_audio_langs
 
@@ -347,6 +347,23 @@ def read_poem(
     if poem is None:
         raise HTTPException(status_code=404, detail="poem not found")
     return _detail(poem)
+
+
+@app.delete(
+    "/api/poems/{poem_id}",
+    status_code=204,
+    dependencies=[Depends(require_api_key)],
+)
+def remove_poem(
+    poem_id: int,
+    session: Session = Depends(get_session),
+    data_dir: Path = Depends(get_data_dir),
+) -> Response:
+    """Delete a poem and its generated assets (guarded by the API key, like the
+    generate/stats endpoints, so it stays open for local self-hosting)."""
+    if not delete_poem(session, poem_id, data_dir):
+        raise HTTPException(status_code=404, detail="poem not found")
+    return Response(status_code=204)
 
 
 @app.get("/api/assets/{path:path}")
