@@ -283,3 +283,27 @@ def test_reconcile_noop_when_all_present():
     redis = FakeRedis([job_id])
     assert reconcile_orphans(redis, sf, "image") == 0
     assert redis.pushed == []
+
+
+def test_reconcile_queued_only_skips_running_orphans():
+    """Periodic reconcile (statuses=QUEUED) recovers a stuck QUEUED job but leaves
+    a RUNNING one alone, so an in-flight job is never double-processed (#126)."""
+    from app.worker_common import reconcile_orphans
+
+    sf = _factory()
+    queued_id, _ = _seed(sf)
+    running_id, _ = _seed(sf)
+    with sf() as s:
+        s.get(Job, queued_id).status = JobStatus.QUEUED
+        s.get(Job, running_id).status = JobStatus.RUNNING
+        s.commit()
+
+    # QUEUED-only (the periodic in-loop call): recovers the queued orphan only.
+    redis = FakeRedis()  # neither id is in Redis
+    assert reconcile_orphans(redis, sf, "image", statuses=(JobStatus.QUEUED,)) == 1
+    assert redis.pushed == [("jobs:image", queued_id)]
+
+    # Default (startup call) still recovers both, including the RUNNING one.
+    redis2 = FakeRedis()
+    assert reconcile_orphans(redis2, sf, "image") == 2
+    assert {pid for _, pid in redis2.pushed} == {queued_id, running_id}

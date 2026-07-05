@@ -81,24 +81,30 @@ def reap_stuck(redis_client, job_type: str) -> int:
     return recovered
 
 
-def reconcile_orphans(redis_client, session_factory, job_type: str) -> int:
+def reconcile_orphans(redis_client, session_factory, job_type: str, statuses=None) -> int:
     """Re-enqueue jobs the DB still has as queued/running but that are gone from
-    Redis. Runs at startup.
+    Redis. Runs at startup and, QUEUED-only, periodically from the worker loop.
 
     Redis is not the source of truth for *which* jobs exist (the DB is), and the
     queue can be lost out from under it — a Redis restart with no/late snapshot,
-    or ``docker compose down -v``. When that happens the ids vanish from the
+    ``docker compose down -v``, or the API crashing right after committing a job
+    but before the enqueue (#126). When that happens the ids vanish from the
     lists but the DB rows stay queued/running, so the worker never sees them again
     and the asset is stuck pending/running forever. This pushes any such id back
     onto the queue so it gets processed.
 
-    Assumes a single worker per queue type (the default deployment) and that it
-    runs at startup *before* the consume loop: it re-enqueues RUNNING ids too, so
-    calling it while another worker is mid-job could double-process that job.
+    ``statuses`` selects which DB job states are eligible (default: QUEUED +
+    RUNNING — the full recovery run, safe at startup *before* the consume loop).
+    The periodic in-loop call passes ``(QUEUED,)`` only, so a job actively in
+    flight (RUNNING and already parked on the processing list) is never
+    re-enqueued and double-processed. Assumes a single worker per queue type.
     """
     from sqlalchemy import select
 
     from .models import Job, JobStatus
+
+    if statuses is None:
+        statuses = (JobStatus.QUEUED, JobStatus.RUNNING)
 
     in_redis: set[int] = set()
     for key in (queue_key(job_type), processing_key(job_type)):
@@ -112,7 +118,7 @@ def reconcile_orphans(redis_client, session_factory, job_type: str) -> int:
     with session_factory() as session:
         stmt = select(Job.id).where(
             Job.type == job_type,
-            Job.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+            Job.status.in_(list(statuses)),
         )
         for job_id in session.execute(stmt).scalars():
             if job_id not in in_redis:

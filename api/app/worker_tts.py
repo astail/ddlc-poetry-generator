@@ -151,6 +151,13 @@ class AudioWorker:
                 self.run_once()
                 if time.monotonic() - last_maintenance > MAINTENANCE_INTERVAL_SECONDS:
                     reap_stuck(self._redis, "audio")
+                    # Also recover jobs committed as QUEUED but missing from Redis
+                    # (e.g. the API crashed / the enqueue failed right after the DB
+                    # commit) without waiting for a worker restart. QUEUED-only so
+                    # an in-flight (RUNNING) job is never double-processed (#126).
+                    reconcile_orphans(
+                        self._redis, self._session_factory, "audio", statuses=(JobStatus.QUEUED,)
+                    )
                     last_maintenance = time.monotonic()
             except Exception:  # noqa: BLE001
                 logger.exception("worker loop error")
