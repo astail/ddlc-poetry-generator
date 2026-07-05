@@ -1,0 +1,26 @@
+name: 機能要望 / 改善
+description: 新機能や改善を提案する
+labels: [enhancement]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景 / 現状
+      description: 何が課題か（該当ファイル・行があれば）
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 対応案
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受入基準
+      description: 完了と判断できる条件（チェックボックスで）
+      value: |
+        - [ ]
+    validations:
+      required: true

@@ -1,0 +1,39 @@
+name: バグ報告
+description: 不具合を報告する
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 事象
+      description: 何が起きたか
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する挙動
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 環境 / ログ
+      description: OS・GPU・関連ログなど（秘密情報は載せない）
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受入基準
+      description: 修正完了と判断できる条件（チェックボックスで）
+      value: |
+        - [ ]
