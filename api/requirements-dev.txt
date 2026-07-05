@@ -20,6 +20,8 @@ certifi==2026.6.17
     #   httpx
 click==8.4.2
     # via uvicorn
+coverage==7.15.0
+    # via pytest-cov
 distro==1.9.0
     # via anthropic
 docstring-parser==0.18.0
@@ -67,7 +69,9 @@ pathvalidate==3.3.1
 piper-tts==1.4.2
     # via ddlc-poem-api (pyproject.toml)
 pluggy==1.6.0
-    # via pytest
+    # via
+    #   pytest
+    #   pytest-cov
 protobuf==7.35.1
     # via onnxruntime
 psycopg==3.3.4
@@ -84,6 +88,10 @@ pydantic-core==2.46.4
 pygments==2.20.0
     # via pytest
 pytest==9.1.1
+    # via
+    #   ddlc-poem-api (pyproject.toml)
+    #   pytest-cov
+pytest-cov==7.1.0
     # via ddlc-poem-api (pyproject.toml)
 python-dotenv==1.2.2
     # via uvicorn
