@@ -8,6 +8,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +33,7 @@ from .image_models import catalog as image_model_catalog
 from .image_models import default_name as default_image_model
 from .image_models import resolve as resolve_image_model
 from .models import Poem
+from .observability import configure_logging, init_error_tracking, request_id_var
 from .queue import JobQueue
 from .ratelimit import RateLimiter
 from .repository import delete_poem, get_poem, get_poems, get_stats
@@ -39,6 +41,10 @@ from .service import GenerationService
 from .voices import supported_audio_langs
 
 app = FastAPI(title="DDLC Poetry Generator API")
+
+# Structured logging + optional Sentry, configured once at import (#128).
+configure_logging()
+init_error_tracking()
 
 # Browser calls come from the frontend on a different origin (port 3000 vs the
 # API's 8000, and often a LAN IP rather than localhost), so the app must answer
@@ -76,6 +82,21 @@ app.add_middleware(
 async def _security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
+@app.middleware("http")
+async def _request_id(request: Request, call_next):
+    # Correlate logs for a single request across the app: accept a caller-supplied
+    # X-Request-ID or mint one, expose it via the contextvar for log records, and
+    # echo it back on the response (#128).
+    rid = request.headers.get("X-Request-ID") or uuid4().hex
+    token = request_id_var.set(rid)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+    response.headers["X-Request-ID"] = rid
     return response
 
 
