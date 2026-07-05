@@ -30,9 +30,13 @@ export default function PoemDetailPage() {
   // toggled per-poem to compare translations.
   const [viewLang, setViewLang] = useState<string>(lang);
 
-  useEffect(() => {
+  // Follow the global mode when it changes, adjusting during render (React's
+  // "adjust state when a value changes" pattern) instead of in an effect.
+  const [prevLang, setPrevLang] = useState(lang);
+  if (prevLang !== lang) {
+    setPrevLang(lang);
     setViewLang(lang);
-  }, [lang]);
+  }
 
   useEffect(() => {
     if (!id) return;
