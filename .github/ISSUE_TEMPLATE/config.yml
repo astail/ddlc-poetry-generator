@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: セキュリティ脆弱性の報告
+    url: https://github.com/astail/ddlc-poetry-generator/security/advisories/new
+    about: セキュリティ問題は公開 issue にせず、非公開の脆弱性報告から連絡してください（SECURITY.md 参照）。

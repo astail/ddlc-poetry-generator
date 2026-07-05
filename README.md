@@ -164,6 +164,12 @@ CI（GitHub Actions）では `docker compose config` 検証・`ruff`/`pytest`・
 - **`POST /api/generate` が 429**: レート制限。`RATE_LIMIT_PER_MIN` を調整
 - **フロントから API に繋がらない**: `NEXT_PUBLIC_API_BASE`（既定 `http://localhost:8000`）を確認
 
+## 貢献 / セキュリティ
+
+- 開発手順・テスト/lint・コミット規約は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照。
+- バグ / 機能要望は Issue テンプレート（**New issue** から選択）を使用。
+- セキュリティ脆弱性は公開 issue にせず [SECURITY.md](./SECURITY.md) の手順で報告。
+
 ## ライセンス
 
 ソースコードは [MIT](./LICENSE)。第三者IP・モデル・APIの権利は [DISCLAIMER.md](./DISCLAIMER.md) を参照。
