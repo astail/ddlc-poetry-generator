@@ -32,6 +32,13 @@ services:
       - api
     networks: [edge]
     restart: unless-stopped
+    healthcheck:
+      # Next standalone server has no curl; use node's http client (#127).
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # One-shot DB migration: runs `alembic upgrade head` once and exits. api and
   # the workers wait for it to finish (service_completed_successfully) so the
@@ -40,6 +47,10 @@ services:
   migrate:
     build: ./api
     command: ["alembic", "upgrade", "head"]
+    # Reuses the api image (which carries a /health HEALTHCHECK), but this one-shot
+    # serves no HTTP and exits on success, so disable the inherited check (#127).
+    healthcheck:
+      disable: true
     env_file: [.env]
     environment: *app-env
     depends_on:
@@ -91,6 +102,14 @@ services:
     # Reuses the api image (shared `app` package); no direct GPU needed here.
     build: ./api
     command: ["python", "-m", "app.worker_gpu"]
+    # The image's default HEALTHCHECK hits /health (the api server); this worker
+    # serves no HTTP, so check its consume-loop heartbeat file instead (#127).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys; p='/data/.worker_image.heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<30 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     env_file: [.env]
     environment: *app-env
     volumes:
@@ -113,6 +132,13 @@ services:
     # run concurrently with heavy image generation (#16).
     build: ./api
     command: ["python", "-m", "app.worker_tts"]
+    # See worker-gpu: check the consume-loop heartbeat file, not /health (#127).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys; p='/data/.worker_audio.heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<30 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     env_file: [.env]
     environment: *app-env
     volumes:

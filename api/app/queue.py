@@ -56,6 +56,7 @@ def redis_from_url(url: Optional[str] = None):
 
 class JobQueue(Protocol):
     def enqueue(self, job_type: str, job_id: int) -> None: ...
+    def ping(self) -> None: ...
 
 
 class RedisJobQueue:
@@ -71,6 +72,10 @@ class RedisJobQueue:
     def enqueue(self, job_type: str, job_id: int) -> None:
         self._client.rpush(queue_key(job_type), job_id)
 
+    def ping(self) -> None:
+        # Round-trip to Redis so /health can report backend reachability (#127).
+        self._client.ping()
+
 
 class InMemoryJobQueue:
     """Test/dev queue that just records what was enqueued."""
@@ -80,3 +85,6 @@ class InMemoryJobQueue:
 
     def enqueue(self, job_type: str, job_id: int) -> None:
         self.items.setdefault(job_type, []).append(job_id)
+
+    def ping(self) -> None:
+        return None

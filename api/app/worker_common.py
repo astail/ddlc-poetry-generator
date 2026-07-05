@@ -12,6 +12,7 @@ double-processing window that existed when ``rpush`` ran before ``commit``.
 from __future__ import annotations
 
 import logging
+import os
 
 from redis.exceptions import RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
@@ -35,6 +36,26 @@ MAINTENANCE_INTERVAL_SECONDS = 60
 def processing_key(job_type: str) -> str:
     """Redis list holding ids a worker has popped but not yet finished."""
     return f"{queue_key(job_type)}:processing"
+
+
+def heartbeat_path(job_type: str, data_dir=None):
+    """Path of the per-worker heartbeat file under the data dir (#127)."""
+    from pathlib import Path
+
+    base = Path(data_dir if data_dir is not None else os.environ.get("DATA_DIR", "/data"))
+    return base / f".worker_{job_type}.heartbeat"
+
+
+def write_heartbeat(job_type: str, data_dir=None) -> None:
+    """Touch the heartbeat file so a container healthcheck can tell the worker's
+    consume loop is alive (#127). Best-effort: a write failure is logged, never
+    fatal to the loop."""
+    path = heartbeat_path(job_type, data_dir)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    except OSError:
+        logger.warning("could not write %s worker heartbeat", job_type)
 
 
 def reliable_pop(redis_client, job_type: str, timeout: int):

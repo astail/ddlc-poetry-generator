@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .assets import resolve_under
@@ -258,8 +259,33 @@ def _detail(poem: Poem) -> PoemDetail:
 
 # ---------------------------------------------------------------- endpoints
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health(
+    session: Session = Depends(get_session),
+    queue: JobQueue = Depends(get_queue),
+) -> JSONResponse:
+    """Readiness check: verify the app can reach its DB and Redis (#127).
+
+    Returns 503 (status ``degraded``) if either backend is unreachable so a
+    compose/orchestrator healthcheck sees the api as unhealthy instead of it
+    silently accepting traffic it cannot serve. Individual backend states are
+    reported per key for quick diagnosis.
+    """
+    checks: dict[str, str] = {}
+    healthy = True
+    try:
+        session.execute(text("SELECT 1"))
+        checks["db"] = "ok"
+    except Exception:  # noqa: BLE001 - report unreachable DB, don't 500
+        checks["db"] = "error"
+        healthy = False
+    try:
+        queue.ping()
+        checks["redis"] = "ok"
+    except Exception:  # noqa: BLE001 - report unreachable Redis, don't 500
+        checks["redis"] = "error"
+        healthy = False
+    body = {"status": "ok" if healthy else "degraded", **checks}
+    return JSONResponse(status_code=200 if healthy else 503, content=body)
 
 
 # /api/stats exposes aggregate usage (total poems, per-character counts, asset
