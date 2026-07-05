@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .claude_client import PoemGenerator
 from .db import create_db_engine, make_session_factory
 from .queue import JobQueue, RedisJobQueue
-from .ratelimit import RateLimiter
+from .ratelimit import RateLimiter, RateLimiterLike, RedisRateLimiter
 
 
 @lru_cache
@@ -44,8 +44,15 @@ def get_data_dir() -> Path:
 
 
 @lru_cache
-def get_rate_limiter() -> RateLimiter:
-    return RateLimiter(int(os.environ.get("RATE_LIMIT_PER_MIN", "20")), 60)
+def get_rate_limiter() -> RateLimiterLike:
+    max_per_min = int(os.environ.get("RATE_LIMIT_PER_MIN", "20"))
+    if os.environ.get("REDIS_URL"):
+        # Shared across processes/replicas (#135). redis_from_url is lazy, and a
+        # runtime Redis outage fails open in RedisRateLimiter.check.
+        from .queue import redis_from_url
+
+        return RedisRateLimiter(redis_from_url(), max_per_min, 60)
+    return RateLimiter(max_per_min, 60)
 
 
 @lru_cache

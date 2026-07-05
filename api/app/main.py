@@ -35,7 +35,7 @@ from .image_models import resolve as resolve_image_model
 from .models import Poem
 from .observability import configure_logging, init_error_tracking, request_id_var
 from .queue import JobQueue
-from .ratelimit import RateLimiter
+from .ratelimit import RateLimiterLike
 from .repository import delete_poem, get_poem, get_poems, get_stats
 from .service import GenerationService
 from .voices import supported_audio_langs
@@ -102,7 +102,7 @@ async def _request_id(request: Request, call_next):
 
 def enforce_rate_limit(
     request: Request,
-    limiter: RateLimiter = Depends(get_rate_limiter),
+    limiter: RateLimiterLike = Depends(get_rate_limiter),
 ) -> None:
     # Identify the client by source IP. Behind a reverse proxy / Docker bridge
     # this is the gateway IP unless uvicorn runs with --proxy-headers (+ a
