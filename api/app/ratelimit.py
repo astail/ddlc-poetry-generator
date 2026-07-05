@@ -2,9 +2,9 @@
 
 Scope / limitations (see #57): state is per-process and in-memory, so the
 effective limit across multiple uvicorn workers / replicas is roughly
-``max_requests * process_count``. For a shared, replica-consistent limit a
-Redis-backed limiter (fixed window ``INCR``+``EXPIRE``) would be needed. The
-key is whatever the caller passes (the API uses ``request.client.host``); behind
+``max_requests * process_count``. For a shared, replica-consistent limit,
+``RedisRateLimiter`` below (fixed window ``INCR``+``EXPIRE``, #135) is selected
+automatically when ``REDIS_URL`` is set. The key is whatever the caller passes (the API uses ``request.client.host``); behind
 a reverse proxy run uvicorn with ``--proxy-headers``/``--forwarded-allow-ips``
 so that resolves to the real client rather than the gateway IP.
 
@@ -15,10 +15,22 @@ limit (memory-exhaustion DoS).
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
+from typing import Protocol
+
+from redis.exceptions import RedisError
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_KEYS = 10_000
+
+
+class RateLimiterLike(Protocol):
+    """Shared interface: ``check(key) -> (allowed, retry_after_seconds)``."""
+
+    def check(self, key: str, now: float | None = None) -> tuple[bool, int]: ...
 
 
 class RateLimiter:
@@ -67,3 +79,39 @@ class RateLimiter:
             oldest = sorted(self._hits.items(), key=lambda kv: kv[1][-1])[:overflow]
             for k, _ in oldest:
                 del self._hits[k]
+
+
+class RedisRateLimiter:
+    """Fixed-window rate limiter shared across processes via Redis (#135).
+
+    Follow-up to #57's per-process in-memory limiter: each ``(key, window)`` is a
+    single Redis ``INCR`` with an ``EXPIRE``, so all uvicorn workers / replicas
+    share one counter and the effective limit is the real ``max_requests``
+    regardless of process count. On a Redis error it **fails open** (allows the
+    request) rather than locking out legitimate traffic on a transient blip — the
+    cost it guards (Claude / GPU) is already bounded by ``GENERATE_MAX_CONCURRENCY``.
+    """
+
+    def __init__(self, client, max_requests: int, window_seconds: float):
+        self._client = client
+        self.max = max_requests
+        self.window = window_seconds
+
+    def check(self, key: str, now: float | None = None) -> tuple[bool, int]:
+        """Return (allowed, retry_after_seconds). Uses wall-clock ``time.time`` so
+        the window boundary is consistent across processes."""
+        now = time.time() if now is None else now
+        window_index = int(now // self.window)
+        redis_key = f"ratelimit:{key}:{window_index}"
+        try:
+            count = int(self._client.incr(redis_key))
+            if count == 1:
+                # Expire just after the window closes so counters self-clean.
+                self._client.expire(redis_key, int(self.window) + 1)
+        except (RedisError, OSError):
+            logger.warning("rate limiter Redis unavailable; allowing request (fail-open)")
+            return True, 0
+        if count > self.max:
+            retry_after = int(self.window - (now % self.window)) + 1
+            return False, retry_after
+        return True, 0
