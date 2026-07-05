@@ -11,6 +11,20 @@ from .models import Audio, Image, Job, JobType, Poem
 from .schemas import PoemResult
 
 
+def combine_image_prompt(base: str, extra: Optional[str]) -> str:
+    """Append the user's optional extra tags to the model-generated image prompt.
+
+    The mandatory quality prefix is added later in the worker, so this only joins
+    the model's tags with the user's (comma-separated). Blank/whitespace extras
+    are ignored so an empty field never dirties the prompt.
+    """
+    extra = (extra or "").strip().rstrip(",").strip()
+    base = (base or "").strip()
+    if not extra:
+        return base
+    return f"{base}, {extra}" if base else extra
+
+
 def persist_poem(
     session: Session,
     result: PoemResult,
@@ -21,6 +35,7 @@ def persist_poem(
     image_checkpoint: Optional[str] = None,
     generate_image: bool = True,
     generate_audio: bool = True,
+    image_prompt_extra: Optional[str] = None,
 ) -> tuple[Poem, list[Job]]:
     """Create the Poem plus the selected pending Image/Audio assets and Jobs.
 
@@ -45,7 +60,7 @@ def persist_poem(
     audio = None
     if generate_image:
         image = Image(
-            prompt=result.image_prompt,
+            prompt=combine_image_prompt(result.image_prompt, image_prompt_extra),
             negative=result.image_negative,
             checkpoint=image_checkpoint,
         )

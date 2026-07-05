@@ -7,9 +7,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.characters import Character
-from app.deps import get_generator, get_queue, get_session
+from app.deps import get_generator, get_queue, get_rate_limiter, get_session
 from app.main import app
-from app.models import Base, Job, Poem
+from app.models import Base, Image, Job, Poem
 from app.queue import InMemoryJobQueue
 from app.schemas import PoemResult
 
@@ -48,6 +48,12 @@ def client():
     app.dependency_overrides[get_session] = _override_session
     app.dependency_overrides[get_generator] = _FakeGenerator
     app.dependency_overrides[get_queue] = lambda: queue
+
+    # get_rate_limiter is @lru_cache'd, so its RateLimiter is shared for the whole
+    # process — without this reset the per-IP hit counter accumulates across every
+    # test and eventually trips the 20/min limit (order-dependent 429s). Clearing
+    # the cache gives each test a fresh limiter.
+    get_rate_limiter.cache_clear()
 
     c = TestClient(app)
     c.session_local = SessionLocal
@@ -99,6 +105,31 @@ def test_generate_default_model_when_omitted(client):
     assert r.status_code == 200, r.text
     # Falls back to the configured default checkpoint (allow-listed).
     assert r.json()["images"][0]["checkpoint"] == "anything-v5.safetensors"
+
+
+def test_generate_appends_user_image_prompt(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "image_prompt_extra": "cherry blossoms, soft light"},
+    )
+    assert r.status_code == 200, r.text
+    with client.session_local() as s:
+        img = s.query(Image).one()
+        # User tags are appended to the model-generated prompt (SAMPLE_POEM).
+        assert img.prompt == (
+            "1girl, purple hair, moonlit shore, waves, melancholic, cherry blossoms, soft light"
+        )
+
+
+def test_generate_blank_image_prompt_is_ignored(client):
+    r = client.post(
+        "/api/generate",
+        json={"character": "yuri", "image_prompt_extra": "   "},
+    )
+    assert r.status_code == 200, r.text
+    with client.session_local() as s:
+        img = s.query(Image).one()
+        assert img.prompt == "1girl, purple hair, moonlit shore, waves, melancholic"
 
 
 def test_generate_rejects_unknown_model(client):

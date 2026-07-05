@@ -60,6 +60,8 @@ const STRINGS = {
     "form.image": "🎨 画像を生成",
     "form.imageDesc": "詩の雰囲気に合わせたイラスト",
     "form.model": "モデル",
+    "form.imagePromptExtra": "追加プロンプト（任意）",
+    "form.imagePromptExtraPlaceholder": "例: cherry blossoms, soft light",
     "form.audio": "🔊 音声を生成",
     "form.audioDesc": "キャラボイス風に読み上げ",
     "form.audioUnsupported":
@@ -103,6 +105,8 @@ const STRINGS = {
     "form.image": "🎨 Generate image",
     "form.imageDesc": "An illustration matching the poem's mood",
     "form.model": "Model",
+    "form.imagePromptExtra": "Extra prompt (optional)",
+    "form.imagePromptExtraPlaceholder": "e.g. cherry blossoms, soft light",
     "form.audio": "🔊 Generate audio",
     "form.audioDesc": "Read aloud, character-voice style",
     "form.audioUnsupported":
