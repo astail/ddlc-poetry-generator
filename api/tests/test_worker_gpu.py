@@ -285,6 +285,19 @@ def test_reconcile_noop_when_all_present():
     assert redis.pushed == []
 
 
+def test_write_heartbeat_touches_recent_file(tmp_path):
+    """The worker heartbeat file exists with a fresh mtime so a container
+    healthcheck can tell the consume loop is alive (#127)."""
+    import time
+
+    from app.worker_common import heartbeat_path, write_heartbeat
+
+    write_heartbeat("image", tmp_path)
+    p = heartbeat_path("image", tmp_path)
+    assert p.exists()
+    assert time.time() - p.stat().st_mtime < 5
+
+
 def test_reconcile_queued_only_skips_running_orphans():
     """Periodic reconcile (statuses=QUEUED) recovers a stuck QUEUED job but leaves
     a RUNNING one alone, so an in-flight job is never double-processed (#126)."""

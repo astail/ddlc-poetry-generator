@@ -63,7 +63,11 @@ def client():
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"status": "ok"}
+    # /health now reflects DB + Redis reachability (#127): in-memory DB + the
+    # InMemoryJobQueue's no-op ping => fully healthy.
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok", "db": "ok", "redis": "ok"}
 
 
 def test_generate_returns_bilingual_poem_and_enqueues(client):
@@ -326,3 +330,20 @@ def test_stats_requires_api_key_when_configured(client):
 def test_stats_open_when_no_token_configured(client):
     # No API_AUTH_TOKEN -> require_api_key is a no-op and /api/stats stays public.
     assert client.get("/api/stats").status_code == 200
+
+
+def test_health_degraded_when_redis_unreachable(client):
+    class DownQueue:
+        def enqueue(self, *a, **k):
+            pass
+
+        def ping(self):
+            raise RuntimeError("redis down")
+
+    app.dependency_overrides[get_queue] = lambda: DownQueue()
+    r = client.get("/health")
+    assert r.status_code == 503
+    body = r.json()
+    assert body["status"] == "degraded"
+    assert body["redis"] == "error"
+    assert body["db"] == "ok"

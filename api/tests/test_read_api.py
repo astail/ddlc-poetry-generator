@@ -5,9 +5,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.assets import resolve_under
-from app.deps import get_data_dir, get_session
+from app.deps import get_data_dir, get_queue, get_session
 from app.main import app
 from app.models import Audio, Base, Image, Poem
+from app.queue import InMemoryJobQueue
 
 
 @pytest.fixture
@@ -28,6 +29,8 @@ def client():
             session.close()
 
     app.dependency_overrides[get_session] = _override_session
+    # /health now pings the queue backend (#127); use the in-memory fake here.
+    app.dependency_overrides[get_queue] = lambda: InMemoryJobQueue()
     c = TestClient(app)
     c.session_local = SessionLocal
     yield c

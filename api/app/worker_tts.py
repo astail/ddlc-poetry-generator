@@ -24,6 +24,7 @@ from .worker_common import (
     reap_stuck,
     reconcile_orphans,
     reliable_pop,
+    write_heartbeat,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,7 @@ class AudioWorker:
         last_maintenance = time.monotonic()
         while True:
             try:
+                write_heartbeat("audio")
                 self.run_once()
                 if time.monotonic() - last_maintenance > MAINTENANCE_INTERVAL_SECONDS:
                     reap_stuck(self._redis, "audio")
