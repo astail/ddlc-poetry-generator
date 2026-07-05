@@ -1,8 +1,10 @@
 """Database models (docs/SPEC.md §6).
 
-Status / type values are kept as plain string columns (portable across
-SQLite and PostgreSQL); the StrEnums below are the source of allowed values
-for the application and workers.
+Status / type values are kept as plain string columns (portable across SQLite
+and PostgreSQL). The StrEnums below (plus Character / LANGS) are the source of
+allowed values, and are mirrored as DB-level CHECK constraints (#123) so an
+invalid status/type/lang/character/backend is rejected by the database itself,
+not only the application layer.
 """
 
 from __future__ import annotations
@@ -10,13 +12,15 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
     mapped_column,
     relationship,
 )
+
+from .characters import Character
 
 
 class Base(DeclarativeBase):
@@ -48,8 +52,35 @@ class TtsBackend(StrEnum):
     VOICEVOX = "voicevox"
 
 
+# Allowed content languages (matches GenerateRequest's ^(en|ja)$ and audios.lang).
+LANGS = ("en", "ja")
+
+
+def _sql_in(column: str, values) -> str:
+    """Build a portable ``col IN ('a','b',...)`` CHECK condition.
+
+    The StrEnums above (plus Character / LANGS) are the single source of allowed
+    values; the DB-level CHECK constraints below are generated from them so an
+    invalid status/type/lang/character/backend is rejected by the database, not
+    only by the application layer.
+    """
+    joined = ", ".join(f"'{v}'" for v in values)
+    return f"{column} IN ({joined})"
+
+
+_CHARACTERS = tuple(c.value for c in Character)
+_ASSET_STATUSES = tuple(s.value for s in AssetStatus)
+_JOB_STATUSES = tuple(s.value for s in JobStatus)
+_JOB_TYPES = tuple(t.value for t in JobType)
+_BACKENDS = tuple(b.value for b in TtsBackend)
+
+
 class Poem(Base):
     __tablename__ = "poems"
+    __table_args__ = (
+        CheckConstraint(_sql_in("character", _CHARACTERS), name="ck_poems_character"),
+        CheckConstraint(_sql_in("lang", LANGS), name="ck_poems_lang"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     character: Mapped[str] = mapped_column(String(32), index=True)
@@ -76,6 +107,7 @@ class Poem(Base):
 
 class Image(Base):
     __tablename__ = "images"
+    __table_args__ = (CheckConstraint(_sql_in("status", _ASSET_STATUSES), name="ck_images_status"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     poem_id: Mapped[int] = mapped_column(ForeignKey("poems.id", ondelete="CASCADE"), index=True)
@@ -94,6 +126,11 @@ class Image(Base):
 
 class Audio(Base):
     __tablename__ = "audios"
+    __table_args__ = (
+        CheckConstraint(_sql_in("backend", _BACKENDS), name="ck_audios_backend"),
+        CheckConstraint(_sql_in("lang", LANGS), name="ck_audios_lang"),
+        CheckConstraint(_sql_in("status", _ASSET_STATUSES), name="ck_audios_status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     poem_id: Mapped[int] = mapped_column(ForeignKey("poems.id", ondelete="CASCADE"), index=True)
@@ -109,6 +146,10 @@ class Audio(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        CheckConstraint(_sql_in("type", _JOB_TYPES), name="ck_jobs_type"),
+        CheckConstraint(_sql_in("status", _JOB_STATUSES), name="ck_jobs_status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column(String(16), index=True)
