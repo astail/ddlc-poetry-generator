@@ -176,6 +176,7 @@ CI（GitHub Actions）では `docker compose config` 検証・`ruff`/`pytest`・
 ## 貢献 / セキュリティ
 
 - 開発手順・テスト/lint・コミット規約は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照。
+- 変更履歴は [CHANGELOG.md](./CHANGELOG.md)、リリース手順は [RELEASING.md](./RELEASING.md)。
 - バグ / 機能要望は Issue テンプレート（**New issue** から選択）を使用。
 - セキュリティ脆弱性は公開 issue にせず [SECURITY.md](./SECURITY.md) の手順で報告。
 
