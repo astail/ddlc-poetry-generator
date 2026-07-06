@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from .characters import Character
 from .personas import PERSONAS
 
@@ -57,7 +55,7 @@ def build_system_prompt(character: Character) -> str:
     )
 
 
-def build_user_prompt(character: Character, theme: Optional[str]) -> str:
+def build_user_prompt(character: Character, theme: str | None) -> str:
     persona = PERSONAS[character]
     if theme:
         return f"Write a poem in {persona.name}'s voice about: {theme.strip()}"

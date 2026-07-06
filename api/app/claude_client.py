@@ -14,7 +14,6 @@ import json
 import logging
 import re
 import time
-from typing import Optional, Union
 
 from pydantic import ValidationError
 
@@ -60,7 +59,7 @@ class PoemGenerator:
 
     def __init__(
         self,
-        config: Optional[PoemConfig] = None,
+        config: PoemConfig | None = None,
         client=None,
         sleep=time.sleep,
     ):
@@ -77,12 +76,12 @@ class PoemGenerator:
                 max_retries=self.config.max_retries,
             )
 
-    def generate(self, character: Union[Character, str], theme: Optional[str] = None) -> PoemResult:
+    def generate(self, character: Character | str, theme: str | None = None) -> PoemResult:
         character = Character(character)
         system = build_system_prompt(character)
         user = build_user_prompt(character, theme)
 
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for attempt in range(self.config.parse_retries + 1):
             message = self._call(system, user)
 

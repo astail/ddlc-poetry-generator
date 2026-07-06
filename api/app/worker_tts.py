@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Audio, Job, JobStatus
@@ -201,7 +201,7 @@ def _default_synthesizer() -> Synthesizer:
     return RoutingSynthesizer(base, by_lang)
 
 
-def build_worker(synthesizer: Optional[Synthesizer] = None) -> AudioWorker:
+def build_worker(synthesizer: Synthesizer | None = None) -> AudioWorker:
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
     client = redis_from_url()

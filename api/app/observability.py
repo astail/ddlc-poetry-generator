@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Mapping
 from contextvars import ContextVar
-from typing import Mapping, Optional
 
 # Correlation id for the current request (API) or job (workers); "-" when unset.
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
@@ -41,7 +41,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def configure_logging(env: Optional[Mapping[str, str]] = None) -> None:
+def configure_logging(env: Mapping[str, str] | None = None) -> None:
     """Configure root logging once (idempotent).
 
     ``LOG_FORMAT=json`` switches to JSON output; anything else keeps a plain-text
@@ -62,7 +62,7 @@ def configure_logging(env: Optional[Mapping[str, str]] = None) -> None:
     root.setLevel(level)
 
 
-def init_error_tracking(env: Optional[Mapping[str, str]] = None) -> bool:
+def init_error_tracking(env: Mapping[str, str] | None = None) -> bool:
     """Opt-in Sentry init — only when ``SENTRY_DSN`` is set. Returns True if
     enabled. Zero overhead and no dependency when unset; if the DSN is set but
     ``sentry_sdk`` is not installed, warn rather than crash startup.

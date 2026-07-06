@@ -12,8 +12,8 @@ import logging
 import os
 import random
 import time
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Callable, Mapping, Optional
 
 import httpx
 
@@ -113,9 +113,9 @@ class ComfyUIClient:
         self,
         base_url: str,
         *,
-        http: Optional[httpx.Client] = None,
+        http: httpx.Client | None = None,
         data_dir: Path | str = "/data",
-        workflow: Optional[dict] = None,
+        workflow: dict | None = None,
         poll_interval: float = 1.0,
         timeout: float = 180.0,
     ):
@@ -137,7 +137,7 @@ class ComfyUIClient:
         cfg: float = 7,
         width: int = 512,
         height: int = 512,
-        workflow: Optional[dict] = None,
+        workflow: dict | None = None,
     ) -> str:
         # `workflow` lets the caller pick a per-request graph (e.g. SDXL vs
         # SD1.5 for a selected model); falls back to the client's default.
@@ -188,7 +188,7 @@ class ComfyUIClient:
         raise TimeoutError(f"ComfyUI prompt {prompt_id} did not finish in time")
 
     @staticmethod
-    def _raise_if_failed(prompt_id: str, status: Optional[dict]) -> None:
+    def _raise_if_failed(prompt_id: str, status: dict | None) -> None:
         """Surface a ComfyUI execution error (OOM, missing checkpoint, bad node)
         with its real reason instead of letting it fall through to the generic
         "no image" below. ComfyUI records the failure in the history entry's
@@ -231,8 +231,8 @@ class ComfyUIClient:
 def make_comfyui_processor(
     client: ComfyUIClient,
     *,
-    checkpoint: Optional[str] = None,
-    env: Optional[Mapping[str, str]] = None,
+    checkpoint: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> Callable[[Image], str]:
     """Adapt a ComfyUIClient into a worker `processor` (Image -> path).
 
@@ -269,7 +269,7 @@ def make_comfyui_processor(
         # Bounded to a signed 32-bit int: Image.seed is a Postgres INTEGER, so a
         # value above 2**31-1 raises NumericValueOutOfRange on commit (and 2**31
         # of seeds is ample to avoid cache collisions).
-        image.seed = random.randint(0, 2**31 - 1)
+        image.seed = random.randint(0, 2**31 - 1)  # noqa: S311 (image seed, not cryptographic)
         image.checkpoint = name  # provenance (#66)
         image.width = width  # record the size actually generated
         image.height = height

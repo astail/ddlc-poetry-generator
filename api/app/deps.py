@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator
 
 from sqlalchemy.orm import Session
 

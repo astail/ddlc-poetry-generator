@@ -9,10 +9,10 @@ sampler and resolution downstream.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
-EnvLike = Optional[Mapping[str, str]]
+EnvLike = Mapping[str, str] | None
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ def catalog(env: EnvLike = None) -> list[ImageModel]:
     return list(by_name.values())
 
 
-def resolve(name: Optional[str], env: EnvLike = None) -> ImageModel:
+def resolve(name: str | None, env: EnvLike = None) -> ImageModel:
     """Return the ImageModel for ``name`` (or the default when None).
 
     Raises ValueError if ``name`` is not in the allow-list — this is what keeps

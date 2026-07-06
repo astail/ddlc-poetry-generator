@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
-
 from sqlalchemy.orm import Session
 
 from .characters import Character
@@ -21,13 +19,13 @@ class GenerationService:
     def generate(
         self,
         session: Session,
-        character: Union[Character, str],
-        theme: Optional[str] = None,
+        character: Character | str,
+        theme: str | None = None,
         lang: str = "en",
         generate_image: bool = True,
         generate_audio: bool = True,
-        image_checkpoint: Optional[str] = None,
-        image_prompt_extra: Optional[str] = None,
+        image_checkpoint: str | None = None,
+        image_prompt_extra: str | None = None,
     ) -> Poem:
         result = self.generator.generate(character, theme)
         poem, jobs = persist_poem(

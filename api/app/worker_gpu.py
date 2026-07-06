@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from .db import create_db_engine, make_session_factory
 from .models import AssetStatus, Image, Job, JobStatus
@@ -154,7 +154,7 @@ def _default_processor() -> ImageProcessor:
     return make_comfyui_processor(client, checkpoint=default_name())
 
 
-def build_worker(processor: Optional[ImageProcessor] = None) -> ImageWorker:
+def build_worker(processor: ImageProcessor | None = None) -> ImageWorker:
     engine = create_db_engine()
     session_factory = make_session_factory(engine)
     client = redis_from_url()

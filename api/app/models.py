@@ -97,10 +97,10 @@ class Poem(Base):
     # order_by makes images[0] / audios[0] (used as the "representative" asset
     # in API responses) deterministic instead of relying on undefined relation
     # ordering.
-    images: Mapped[list["Image"]] = relationship(
+    images: Mapped[list[Image]] = relationship(
         back_populates="poem", cascade="all, delete-orphan", order_by="Image.id"
     )
-    audios: Mapped[list["Audio"]] = relationship(
+    audios: Mapped[list[Audio]] = relationship(
         back_populates="poem", cascade="all, delete-orphan", order_by="Audio.id"
     )
 

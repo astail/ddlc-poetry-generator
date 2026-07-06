@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -17,7 +16,7 @@ from .schemas import PoemResult
 logger = logging.getLogger(__name__)
 
 
-def combine_image_prompt(base: str, extra: Optional[str]) -> str:
+def combine_image_prompt(base: str, extra: str | None) -> str:
     """Append the user's optional extra tags to the model-generated image prompt.
 
     The mandatory quality prefix is added later in the worker, so this only joins
@@ -35,13 +34,13 @@ def persist_poem(
     session: Session,
     result: PoemResult,
     *,
-    theme: Optional[str] = None,
+    theme: str | None = None,
     lang: str = "en",
-    model: Optional[str] = None,
-    image_checkpoint: Optional[str] = None,
+    model: str | None = None,
+    image_checkpoint: str | None = None,
     generate_image: bool = True,
     generate_audio: bool = True,
-    image_prompt_extra: Optional[str] = None,
+    image_prompt_extra: str | None = None,
 ) -> tuple[Poem, list[Job]]:
     """Create the Poem plus the selected pending Image/Audio assets and Jobs.
 
@@ -94,7 +93,7 @@ def get_poems(
     *,
     limit: int = 20,
     offset: int = 0,
-    character: Optional[str] = None,
+    character: str | None = None,
 ) -> list[Poem]:
     # Eager-load the image/audio relations so _summary's images[0] / audios[0]
     # access doesn't fire a lazy query per row (was 1 + 2*N; now a constant 3).
@@ -108,11 +107,11 @@ def get_poems(
     return list(session.scalars(stmt))
 
 
-def get_poem(session: Session, poem_id: int) -> Optional[Poem]:
+def get_poem(session: Session, poem_id: int) -> Poem | None:
     return session.get(Poem, poem_id)
 
 
-def _remove_asset_file(data_dir: Path, kind: str, path: Optional[str]) -> None:
+def _remove_asset_file(data_dir: Path, kind: str, path: str | None) -> None:
     """Best-effort delete of a generated asset file under ``data_dir/kind``.
 
     Mirrors how assets are served (``data_dir/<kind>/<basename>``) and reuses
@@ -163,11 +162,20 @@ def delete_poem(session: Session, poem_id: int, data_dir: Path) -> bool:
 
 def get_stats(session: Session) -> dict:
     total = session.scalar(select(func.count()).select_from(Poem)) or 0
-    by_character = dict(
-        session.execute(select(Poem.character, func.count()).group_by(Poem.character)).all()
-    )
-    images = dict(session.execute(select(Image.status, func.count()).group_by(Image.status)).all())
-    audios = dict(session.execute(select(Audio.status, func.count()).group_by(Audio.status)).all())
+    by_character: dict[str, int] = {
+        row[0]: row[1]
+        for row in session.execute(
+            select(Poem.character, func.count()).group_by(Poem.character)
+        ).all()
+    }
+    images: dict[str, int] = {
+        row[0]: row[1]
+        for row in session.execute(select(Image.status, func.count()).group_by(Image.status)).all()
+    }
+    audios: dict[str, int] = {
+        row[0]: row[1]
+        for row in session.execute(select(Audio.status, func.count()).group_by(Audio.status)).all()
+    }
     return {
         "total_poems": total,
         "by_character": by_character,

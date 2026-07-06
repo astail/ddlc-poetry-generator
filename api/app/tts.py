@@ -69,7 +69,7 @@ def _download_atomic(
     """
     tmp = dest.with_name(dest.name + ".part")
     try:
-        urllib.request.urlretrieve(url, tmp)
+        urllib.request.urlretrieve(url, tmp)  # noqa: S310 (hardcoded HTTPS HF URLs only)
         actual_size = tmp.stat().st_size
         if expected_size is not None and actual_size != expected_size:
             raise OSError(f"size mismatch for {dest.name}: got {actual_size}, want {expected_size}")
@@ -169,7 +169,7 @@ class PiperSynthesizer:
         try:
             from piper import SynthesisConfig
         except ImportError:
-            SynthesisConfig = None
+            SynthesisConfig = None  # type: ignore[assignment,misc]
 
         if SynthesisConfig is not None:
             try:
