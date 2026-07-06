@@ -40,6 +40,25 @@ services:
       retries: 3
       start_period: 20s
 
+  cloudflared:
+    # Cloudflare Tunnel: publishes the app WITHOUT opening any inbound port
+    # (outbound-only connection to Cloudflare's edge). Opt-in — only starts with
+    # `docker compose --profile public up`, so the default LAN stack is unchanged.
+    # Set CLOUDFLARE_TUNNEL_TOKEN in .env (Cloudflare Zero Trust -> Tunnels); the
+    # public hostname routing (e.g. path /api -> http://api:8000, default ->
+    # http://frontend:3000) is configured in the Cloudflare dashboard.
+    # See docs/PUBLIC-DEPLOY.md.
+    image: cloudflare/cloudflared:latest
+    profiles: ["public"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+      - api
+    networks: [edge]
+    restart: unless-stopped
+
   # One-shot DB migration: runs `alembic upgrade head` once and exits. api and
   # the workers wait for it to finish (service_completed_successfully) so the
   # very first request after `docker compose up` can't hit missing tables (#64).
