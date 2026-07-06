@@ -22,6 +22,10 @@ FROM node:26-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+# Bind the standalone server to all interfaces. Without this, Next binds to the
+# Docker-provided $HOSTNAME (the container id), so the compose healthcheck's
+# http://127.0.0.1:3000 is refused and the container is marked unhealthy (#127).
+ENV HOSTNAME=0.0.0.0
 # Copy the standalone server, owned by the built-in non-root `node` user. The
 # server only reads these files and serves on $PORT (no runtime writes), so
 # dropping root is safe (defence in depth, #55).
