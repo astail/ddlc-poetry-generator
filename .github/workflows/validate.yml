@@ -5,11 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# Third-party actions are pinned to a commit SHA (supply-chain hardening, #117);
+# the trailing comment is the human-readable version. Dependabot (github-actions)
+# keeps the SHA + comment updated.
 jobs:
   compose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Validate docker-compose.yml
         run: |
           cp .env.example .env
@@ -18,8 +21,8 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: Install api (pinned runtime + dev deps)
@@ -36,8 +39,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
       - name: Install deps (from lockfile)
@@ -52,17 +55,45 @@ jobs:
         run: cd frontend && npm run lint
 
   images:
-    # Actually build the app images so a broken Dockerfile / failed dependency
-    # resolution is caught (the compose job only validates YAML, never builds).
-    # comfyui is intentionally omitted: its CUDA base is multi-GB and needs a
-    # GPU runner, which the hosted runners don't provide.
+    # Build the app images so a broken Dockerfile / failed dependency resolution
+    # is caught (the compose job only validates YAML, never builds), then scan them
+    # with Trivy (#117). comfyui is intentionally omitted: its CUDA base is multi-GB
+    # and needs a GPU runner, which the hosted runners don't provide.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Build api image
         run: docker build -t ddlc-api ./api
       - name: Build frontend image
         run: docker build -t ddlc-frontend ./frontend
+      # Fail only on fixable CRITICAL vulns so unfixable base-image CVEs don't
+      # block the build (they still surface in the logs).
+      - name: Scan api image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ddlc-api
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan frontend image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ddlc-frontend
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  secrets:
+    # Secret scanning (#117): blocks a PR/push that introduces a credential.
+    # .env.example placeholders are allow-listed in .gitleaks.toml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   audit:
     # Advisory dependency scan: surfaces known vulnerabilities in the logs but
@@ -70,14 +101,14 @@ jobs:
     # Dependabot from #63 handles the actual version bumps).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
       - name: npm audit (frontend)
         # Reads the committed package-lock.json directly (no install needed).
         run: cd frontend && npm audit --audit-level=high || true
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: pip-audit (api)
