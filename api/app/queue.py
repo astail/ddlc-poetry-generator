@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import os
-from typing import Optional, Protocol
+from typing import Protocol
 
 
 def queue_key(job_type: str) -> str:
     return f"jobs:{job_type}"
 
 
-def redis_from_url(url: Optional[str] = None):
+def redis_from_url(url: str | None = None):
     """Build a Redis client hardened against transient connection failures.
 
     The worker holds a long-lived connection for its blocking-pop loop, and two
@@ -66,7 +66,7 @@ class RedisJobQueue:
         self._client = client
 
     @classmethod
-    def from_env(cls) -> "RedisJobQueue":
+    def from_env(cls) -> RedisJobQueue:
         return cls(redis_from_url())
 
     def enqueue(self, job_type: str, job_id: int) -> None:

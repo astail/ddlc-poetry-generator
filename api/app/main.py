@@ -5,9 +5,9 @@ from __future__ import annotations
 import hmac
 import os
 import threading
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Optional
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -120,8 +120,8 @@ def enforce_rate_limit(
 
 
 def require_api_key(
-    x_api_key: Optional[str] = Header(default=None),
-    token: Optional[str] = Depends(get_api_auth_token),
+    x_api_key: str | None = Header(default=None),
+    token: str | None = Depends(get_api_auth_token),
 ) -> None:
     # Constant-time compare so the response time doesn't leak how many leading
     # characters of the shared secret matched (timing side-channel). Compare as
@@ -160,7 +160,7 @@ async def _poem_generation_error(request: Request, exc: PoemGenerationError):
 # ---------------------------------------------------------------- request models
 class GenerateRequest(BaseModel):
     character: Character
-    theme: Optional[str] = Field(default=None, max_length=200)
+    theme: str | None = Field(default=None, max_length=200)
     lang: str = Field(default="en", pattern="^(en|ja)$")
     # Opt each asset in or out. Both default to True so existing callers that
     # omit the flags keep getting image + audio (backward compatible).
@@ -168,23 +168,23 @@ class GenerateRequest(BaseModel):
     generate_audio: bool = True
     # Image checkpoint to use. None = the configured default. Validated against
     # the allow-list (#49); unknown names are rejected (422).
-    model: Optional[str] = Field(default=None, max_length=200)
+    model: str | None = Field(default=None, max_length=200)
     # Optional extra positive-prompt tags supplied by the user, appended to the
     # model-generated image prompt (still gets the mandatory quality prefix and
     # base negative in the worker). Ignored when generate_image is false.
-    image_prompt_extra: Optional[str] = Field(default=None, max_length=500)
+    image_prompt_extra: str | None = Field(default=None, max_length=500)
 
 
 # ---------------------------------------------------------------- response models
 class ImageOut(BaseModel):
     id: int
     status: str
-    path: Optional[str]
-    url: Optional[str] = None
+    path: str | None
+    url: str | None = None
     width: int
     height: int
-    seed: Optional[int]
-    checkpoint: Optional[str] = None  # image model used / selected (#49)
+    seed: int | None
+    checkpoint: str | None = None  # image model used / selected (#49)
 
 
 class AudioOut(BaseModel):
@@ -192,12 +192,12 @@ class AudioOut(BaseModel):
     backend: str
     lang: str
     status: str
-    path: Optional[str]
-    url: Optional[str] = None
-    voice: Optional[str]
+    path: str | None
+    url: str | None = None
+    voice: str | None
 
 
-def _asset_url(kind: str, path: Optional[str]) -> Optional[str]:
+def _asset_url(kind: str, path: str | None) -> str | None:
     """Public URL for a stored asset (served by GET /api/assets/{kind}/{name})."""
     if not path:
         return None
@@ -208,19 +208,19 @@ class PoemSummary(BaseModel):
     id: int
     character: str
     title: str
-    title_ja: Optional[str] = None
-    mood: Optional[str]
+    title_ja: str | None = None
+    mood: str | None
     lang: str
     created_at: datetime
-    image_status: Optional[str]
-    audio_status: Optional[str]
-    image_url: Optional[str] = None
-    audio_url: Optional[str] = None
+    image_status: str | None
+    audio_status: str | None
+    image_url: str | None = None
+    audio_url: str | None = None
 
 
 class PoemDetail(PoemSummary):
-    theme: Optional[str]
-    model: Optional[str]
+    theme: str | None
+    model: str | None
     poem_en: str
     poem_ja: str
     images: list[ImageOut]
@@ -338,7 +338,7 @@ def generate(
     try:
         image_model = resolve_image_model(req.model).name
     except ValueError:
-        raise HTTPException(status_code=422, detail=f"unknown image model: {req.model}")
+        raise HTTPException(status_code=422, detail=f"unknown image model: {req.model}") from None
     service = GenerationService(generator, queue)
     poem = service.generate(
         session,
@@ -383,7 +383,7 @@ def tts_capabilities() -> dict:
 def list_poems(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    character: Optional[Character] = None,
+    character: Character | None = None,
     session: Session = Depends(get_session),
 ) -> list[PoemSummary]:
     poems = get_poems(

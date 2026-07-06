@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import List
 
 
 def text_message(
@@ -28,9 +27,9 @@ def text_message(
 
 
 class FakeMessages:
-    def __init__(self, responses: List[object]):
+    def __init__(self, responses: list[object]):
         self._responses = list(responses)
-        self.calls: List[dict] = []
+        self.calls: list[dict] = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
@@ -43,7 +42,7 @@ class FakeMessages:
 
 
 class FakeClient:
-    def __init__(self, responses: List[object]):
+    def __init__(self, responses: list[object]):
         self.messages = FakeMessages(responses)
 
 

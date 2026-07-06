@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 DEFAULT_URL = "sqlite+pysqlite:///:memory:"
 
 
-def get_database_url(env: Optional[Mapping[str, str]] = None) -> str:
+def get_database_url(env: Mapping[str, str] | None = None) -> str:
     """Resolve the database URL.
 
     Returns ``DATABASE_URL`` when set. When it is *not* set we fall back to an

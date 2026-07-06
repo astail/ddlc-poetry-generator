@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 
-def resolve_under(base: Path, rel: str) -> Optional[Path]:
+def resolve_under(base: Path, rel: str) -> Path | None:
     """Resolve ``rel`` under ``base``; return None if it escapes ``base``.
 
     Guards against path traversal (``..``, absolute paths, symlinks).

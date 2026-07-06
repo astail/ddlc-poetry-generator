@@ -28,6 +28,8 @@ jobs:
         run: cd api && ruff check .
       - name: Ruff format check
         run: cd api && ruff format --check .
+      - name: Type check (mypy)
+        run: cd api && mypy app
       - name: Unit tests (with coverage)
         run: cd api && python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=85
 

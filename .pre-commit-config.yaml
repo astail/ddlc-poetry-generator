@@ -11,3 +11,11 @@ repos:
         name: ruff (format)
         args: ["--config", "api/pyproject.toml"]
         files: ^api/.*\.py$
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (api)
+        entry: bash -c 'cd api && mypy app'
+        language: system
+        pass_filenames: false
+        files: ^api/.*\.py$
