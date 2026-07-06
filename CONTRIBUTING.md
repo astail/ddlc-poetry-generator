@@ -31,6 +31,15 @@ npm test && npx tsc --noEmit && npm run build && npm run lint
 CI（GitHub Actions `validate.yml`）は compose 検証・ruff/pytest+coverage・フロントの
 型/test/build/lint・api/frontend イメージビルド・依存監査を実行します。
 
+## セキュリティスキャン (CI)
+
+- **SAST**: CodeQL（`codeql.yml`、python + JS/TS）— 結果は Security タブへ。
+- **シークレット**: gitleaks（`validate.yml` の `secrets` ジョブ）— 資格情報の混入をブロック。
+  `.env.example` のプレースホルダは `.gitleaks.toml` で許可。
+- **コンテナ**: Trivy が api/frontend イメージを走査し、**修正可能な CRITICAL** で fail
+  （`ignore-unfixed`。base イメージの未修正 CVE ではブロックしない）。
+- GitHub Actions は **commit SHA でピン**（末尾コメントにバージョン）。Dependabot が SHA を更新。
+
 ## 依存の固定（再現性）
 
 - **Python (api)**: `cd api && uv pip compile pyproject.toml -o requirements.txt`（本番）/

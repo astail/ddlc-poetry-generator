@@ -1,0 +1,10 @@
+# gitleaks config (#117). Use the built-in rules, but allow-list the placeholder
+# secrets in .env.example so documentation examples don't trip the scan.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders"
+paths = [
+  '''\.env\.example''',
+]
