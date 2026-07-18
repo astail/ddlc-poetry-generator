@@ -27,6 +27,10 @@ updates:
         update-types:
           - minor
           - patch
+    # pydantic pins its matching pydantic-core version exactly. Updating the
+    # transitive core package on its own produces an unsatisfiable lock file.
+    ignore:
+      - dependency-name: pydantic-core
 
   # GitHub Actions used by CI
   - package-ecosystem: github-actions
