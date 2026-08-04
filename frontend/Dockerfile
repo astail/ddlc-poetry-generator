@@ -10,12 +10,15 @@ FROM node:26-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Optional: pin the API URL the browser bundle calls. Left empty by default so
-# the frontend derives it from the host the page is loaded from (see api-base.ts).
+# Where this server proxies /api/* to: the compose service name, so no API port
+# has to be published. Baked in at build time because Next resolves rewrites
+# during `next build` (they land in .next/routes-manifest.json).
+ARG API_ORIGIN="http://api:8000"
+ENV API_ORIGIN=$API_ORIGIN
+# Optional: point the browser bundle at an API on another origin instead, bypassing
+# the proxy above. Left empty by default so it calls this server's own /api/*.
 ARG NEXT_PUBLIC_API_BASE=""
-ARG NEXT_PUBLIC_API_PORT="8000"
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
-ENV NEXT_PUBLIC_API_PORT=$NEXT_PUBLIC_API_PORT
 RUN npm run build
 
 FROM node:26-slim AS runner
