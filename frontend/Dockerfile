@@ -29,6 +29,11 @@ ENV PORT=3000
 # Docker-provided $HOSTNAME (the container id), so the compose healthcheck's
 # http://127.0.0.1:3000 is refused and the container is marked unhealthy (#127).
 ENV HOSTNAME=0.0.0.0
+# This stage only ever runs `node server.js` (and `node -e` for the healthcheck),
+# so drop the base image's bundled npm: it is unused weight here, and its
+# vendored dependencies are what the image scan flags (currently npm's own tar,
+# CVE-2026-59873). The build stages above keep their npm.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # Copy the standalone server, owned by the built-in non-root `node` user. The
 # server only reads these files and serves on $PORT (no runtime writes), so
 # dropping root is safe (defence in depth, #55).
