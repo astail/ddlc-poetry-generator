@@ -66,4 +66,11 @@ describe("next.config /api proxy", () => {
     const rules = await rewritesWith();
     expect(rules[0].destination).toBe("http://localhost:8000/api/:path*");
   });
+
+  it("allows a slow POST /api/generate to outlive the default proxy timeout", async () => {
+    // Next cuts the upstream connection after 30s by default, which a poem
+    // generation (synchronous Claude call + retries) exceeds — the API finishes
+    // but the browser sees a 500 "socket hang up".
+    expect(nextConfig.experimental?.proxyTimeout ?? 30_000).toBeGreaterThan(120_000);
+  });
 });

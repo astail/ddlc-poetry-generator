@@ -37,6 +37,16 @@ const nextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },
+  experimental: {
+    // The rewrite proxy cuts the upstream connection after 30s by default, which
+    // POST /api/generate blows through: it waits synchronously for Claude
+    // (POEM_TIMEOUT=60s per call, plus SDK retries and up to POEM_PARSE_RETRIES
+    // re-asks when the model returns unparseable JSON). The API finishes and
+    // stores the poem, but the browser gets a 500 ("socket hang up") — so raise
+    // the cap well above a realistic generation while still bounding a wedged
+    // socket.
+    proxyTimeout: 300_000,
+  },
 };
 
 export default nextConfig;
