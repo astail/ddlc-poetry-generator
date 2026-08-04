@@ -4,9 +4,12 @@ Scope / limitations (see #57): state is per-process and in-memory, so the
 effective limit across multiple uvicorn workers / replicas is roughly
 ``max_requests * process_count``. For a shared, replica-consistent limit,
 ``RedisRateLimiter`` below (fixed window ``INCR``+``EXPIRE``, #135) is selected
-automatically when ``REDIS_URL`` is set. The key is whatever the caller passes (the API uses ``request.client.host``); behind
-a reverse proxy run uvicorn with ``--proxy-headers``/``--forwarded-allow-ips``
-so that resolves to the real client rather than the gateway IP.
+automatically when ``REDIS_URL`` is set. The key is whatever the caller passes:
+the API keys on the caller's *name* when one is configured (see
+``NamedClientLimiter`` and ``app.clients``) and otherwise on
+``request.client.host``. Behind a reverse proxy the latter is the gateway IP
+unless uvicorn runs with ``--proxy-headers``/``--forwarded-allow-ips`` — which
+is exactly why a named bucket is the better lever for a proxied deployment.
 
 Memory is bounded: expired buckets are reclaimed and the number of tracked keys
 is capped (``max_keys``) so a flood of distinct keys can't grow the map without
@@ -18,9 +21,12 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from typing import Protocol
 
 from redis.exceptions import RedisError
+
+from .clients import ClientRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -115,3 +121,42 @@ class RedisRateLimiter:
             retry_after = int(self.window - (now % self.window)) + 1
             return False, retry_after
         return True, 0
+
+
+class NamedClientLimiter:
+    """Per-*name* buckets for the callers listed in ``RATE_LIMIT_CLIENTS``.
+
+    Maps a peer IP to a configured name (docker compose service name, hostname,
+    IP or CIDR — see ``app.clients``) and hands back that name plus a limiter
+    carrying the name's own limit. Callers that match nothing get ``None`` and
+    the API falls back to the default per-IP bucket, so this is inert until an
+    operator configures it.
+
+    Limiters are built lazily and one per name, since each may have a different
+    ``max_requests``; a Redis-backed limiter keys on the name too, so all
+    replicas share the bucket.
+    """
+
+    def __init__(
+        self,
+        registry: ClientRegistry,
+        limiter_factory: Callable[[int], RateLimiterLike],
+        default_max: int,
+    ):
+        self._registry = registry
+        self._factory = limiter_factory
+        self._default_max = default_max
+        self._limiters: dict[str, RateLimiterLike] = {}
+        self._lock = threading.Lock()
+
+    def for_peer(self, peer_ip: str | None) -> tuple[str, RateLimiterLike] | None:
+        """Return ``(name, limiter)`` for a configured caller, else ``None``."""
+        rule = self._registry.match(peer_ip)
+        if rule is None:
+            return None
+        with self._lock:
+            limiter = self._limiters.get(rule.name)
+            if limiter is None:
+                limiter = self._factory(rule.max_per_min or self._default_max)
+                self._limiters[rule.name] = limiter
+        return rule.name, limiter

@@ -11,9 +11,10 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from .claude_client import PoemGenerator
+from .clients import registry_from_env
 from .db import create_db_engine, make_session_factory
 from .queue import JobQueue, RedisJobQueue
-from .ratelimit import RateLimiter, RateLimiterLike, RedisRateLimiter
+from .ratelimit import NamedClientLimiter, RateLimiter, RateLimiterLike, RedisRateLimiter
 
 
 @lru_cache
@@ -43,9 +44,11 @@ def get_data_dir() -> Path:
     return Path(os.environ.get("DATA_DIR", "/data"))
 
 
-@lru_cache
-def get_rate_limiter() -> RateLimiterLike:
-    max_per_min = int(os.environ.get("RATE_LIMIT_PER_MIN", "20"))
+def _default_rate_limit() -> int:
+    return int(os.environ.get("RATE_LIMIT_PER_MIN", "20"))
+
+
+def _new_rate_limiter(max_per_min: int) -> RateLimiterLike:
     if os.environ.get("REDIS_URL"):
         # Shared across processes/replicas (#135). redis_from_url is lazy, and a
         # runtime Redis outage fails open in RedisRateLimiter.check.
@@ -53,6 +56,23 @@ def get_rate_limiter() -> RateLimiterLike:
 
         return RedisRateLimiter(redis_from_url(), max_per_min, 60)
     return RateLimiter(max_per_min, 60)
+
+
+@lru_cache
+def get_rate_limiter() -> RateLimiterLike:
+    """Default bucket: one per client IP, at RATE_LIMIT_PER_MIN."""
+    return _new_rate_limiter(_default_rate_limit())
+
+
+@lru_cache
+def get_named_client_limiter() -> NamedClientLimiter:
+    """Named buckets for RATE_LIMIT_CLIENTS callers (empty config = inert).
+
+    Lets an operator write ``frontend=120`` instead of chasing a container's
+    bridge IP: the browser UI reaches the API through the frontend proxy, so all
+    of its traffic shares that one named bucket.
+    """
+    return NamedClientLimiter(registry_from_env(), _new_rate_limiter, _default_rate_limit())
 
 
 @lru_cache

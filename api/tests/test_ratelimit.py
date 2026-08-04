@@ -97,3 +97,44 @@ def test_redis_limiter_fails_open_on_redis_error():
 
     rl = RedisRateLimiter(_BrokenRedis(), max_requests=1, window_seconds=60)
     assert rl.check("ip", now=100.0) == (True, 0)  # fail-open, request allowed
+
+
+# ---- named client buckets (RATE_LIMIT_CLIENTS) -------------------------------
+
+
+def _named(spec, addresses, default_max=20):
+    from app.clients import ClientRegistry, parse_client_rules
+    from app.ratelimit import NamedClientLimiter
+
+    registry = ClientRegistry(
+        parse_client_rules(spec),
+        resolver=lambda name: frozenset(addresses.get(name, ())),
+    )
+    return NamedClientLimiter(registry, lambda m: RateLimiter(m, 60), default_max)
+
+
+def test_named_limiter_keys_on_the_name_not_the_ip():
+    named = _named("frontend=2", {"frontend": ["172.18.0.5", "172.18.0.6"]})
+    key, limiter = named.for_peer("172.18.0.5")
+    assert key == "frontend"
+    # Both replicas share the one named bucket: the rule's own limit is what
+    # applies, not the default.
+    assert limiter.check(key, now=0) == (True, 0)
+    assert named.for_peer("172.18.0.6")[1].check("frontend", now=0) == (True, 0)
+    assert named.for_peer("172.18.0.5")[1].check("frontend", now=0)[0] is False
+
+
+def test_named_limiter_reuses_one_limiter_per_name():
+    named = _named("frontend", {"frontend": ["172.18.0.5"]})
+    assert named.for_peer("172.18.0.5")[1] is named.for_peer("172.18.0.5")[1]
+
+
+def test_named_limiter_falls_back_to_the_default_limit():
+    named = _named("frontend", {"frontend": ["172.18.0.5"]}, default_max=3)
+    assert named.for_peer("172.18.0.5")[1].max == 3
+
+
+def test_named_limiter_ignores_unlisted_callers():
+    named = _named("frontend", {"frontend": ["172.18.0.5"]})
+    assert named.for_peer("172.18.0.9") is None
+    assert named.for_peer(None) is None
