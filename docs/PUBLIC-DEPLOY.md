@@ -24,14 +24,13 @@
 Cloudflare **Zero Trust → Networks → Tunnels → Create a tunnel**（Cloudflared 型）。
 
 - トークンが表示されるので `.env` の `CLOUDFLARE_TUNNEL_TOKEN` に設定。
-- **Public hostname** を設定（このアプリはブラウザが `/api/*` を叩くので path で振り分ける）:
+- **Public hostname** を設定。`/api/*` は frontend が `api` へプロキシするので、**振り分けは 1 本だけ**:
 
   | Hostname | Path | Service |
   |---|---|---|
-  | `ddlc.example.com` | `api` | `http://api:8000` |
   | `ddlc.example.com` | （空＝既定） | `http://frontend:3000` |
 
-  ※ `cloudflared` は compose の `edge` ネットワークに居るので `api` / `frontend` を名前解決できる。
+  ※ `cloudflared` は compose の `edge` ネットワークに居るので `frontend` を名前解決できる。
 
 ## 3. Access で認証（重要）
 
@@ -42,18 +41,20 @@ Zero Trust → **Access → Applications → Add**（Self-hosted、ドメイン 
 
 ```dotenv
 CLOUDFLARE_TUNNEL_TOKEN=<Cloudflare のトークン>
-CORS_ALLOW_ORIGINS=https://ddlc.example.com
-NEXT_PUBLIC_API_BASE=https://ddlc.example.com   # 同一ホスト /api にルーティング
 POSTGRES_PASSWORD=<強いランダム値>               # change-me のまま公開は厳禁
 REDIS_PASSWORD=<強いランダム値>
 GENERATE_MAX_CONCURRENCY=1                        # コスト/GPU 保護
 RATE_LIMIT_PER_MIN=5
+# 公開時のレート制限はこちらが効く: トンネル経由の通信は cloudflared → frontend →
+# api と流れ、api から見た呼び出し元は常に frontend の 1 つ。全訪問者で共有する
+# バケツなので、コスト保護として絞る。
+RATE_LIMIT_CLIENTS=frontend=10
+# CORS_ALLOW_ORIGINS / NEXT_PUBLIC_API_BASE は不要（ブラウザは公開ドメインの
+# /api/* を同一オリジンで叩き、frontend が api へプロキシする）。
 # 併せて Anthropic Console で spend limit を設定しておく（最後の砦）
 ```
 
 ## 5. 起動
-
-`NEXT_PUBLIC_*` はビルド時に焼き込まれるので **frontend を再ビルド**する:
 
 ```bash
 docker compose --profile public up -d --build
@@ -65,12 +66,11 @@ docker compose --profile public up -d --build
 ## 公開前チェックリスト
 
 - [ ] DNS を Cloudflare に委任済み（案1 or 案2）
-- [ ] Tunnel の public hostname routing（`/api`→api、既定→frontend）
+- [ ] Tunnel の public hostname routing（1 本。既定→`http://frontend:3000`）
 - [ ] **Access ポリシーで許可ユーザーを限定**（無認証公開しない）
 - [ ] 強い `POSTGRES_PASSWORD` / `REDIS_PASSWORD`
-- [ ] `CORS_ALLOW_ORIGINS` / `NEXT_PUBLIC_API_BASE` を公開ドメインに設定し frontend 再ビルド
-- [ ] `GENERATE_MAX_CONCURRENCY` / `RATE_LIMIT_PER_MIN` を絞る＋Anthropic spend limit
-- [ ] api/frontend のポートは直接 0.0.0.0 公開しない（tunnel 経由のみ。LAN からのみ触る前提）
+- [ ] `GENERATE_MAX_CONCURRENCY` / `RATE_LIMIT_CLIENTS`（`frontend=...`）を絞る＋Anthropic spend limit
+- [ ] api のポートは公開しない（`API_BIND` は既定の `127.0.0.1` のまま）。frontend も tunnel 経由前提
 - [ ] db / redis / comfyui は内部ネットワークのみ（既定のまま）
 - [ ] （法務）非公式・非商用のファン制作物（[DISCLAIMER.md](../DISCLAIMER.md)）。**認証付き個人利用に留め、
       誰でも使える公開サービスにはしない**（第三者 IP・Anthropic API ToS の観点）

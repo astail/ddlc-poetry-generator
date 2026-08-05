@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+### Added
+- レート制限を **名前** 単位で設定できる `RATE_LIMIT_CLIENTS`（`frontend=120,cloudflared,10.8.0.0/24=5`）。
+  docker compose のサービス名 / ホスト名は実行時に DNS 解決（30 秒キャッシュ）するので、
+  コンテナの IP が変わっても追従する。未設定なら従来どおり接続元 IP 単位。
+- frontend が `/api/*` を compose のサービス名 `api` へリバースプロキシ（`API_ORIGIN`、既定
+  `http://api:8000`）。ブラウザから見て同一オリジンになるため CORS も API のポート公開も不要。
+- api のホスト側 bind アドレスを選べる `API_BIND`（既定 `127.0.0.1`）。
+
+### Changed
+- **破壊的**: api のポートは既定でループバックのみに bind するようになった。LAN の別端末や
+  外部クライアントから API を直接叩いている場合は `.env` に `API_BIND=0.0.0.0` を設定する
+  （ブラウザ UI は frontend 経由になるため設定不要）。
+- **破壊的**: ブラウザの API 呼び出し先が同一オリジンの `/api/*` になった。`NEXT_PUBLIC_API_BASE`
+  は「プロキシを迂回して別オリジンを叩く」ときだけの設定になり、`NEXT_PUBLIC_API_PORT` は廃止。
+- CORS の既定許可に「名前」のオリジンを追加（`http://frontend:3000` のようなドット無しホスト名、
+  `.local` / `.internal` / `.lan` / `.home.arpa`）。IP リテラルを書かなくても LAN のホスト名で通る。
+- Cloudflare Tunnel の public hostname は 1 本（→ `http://frontend:3000`）で済むようになった。
+
 ## [0.1.0] - 2026-07-06
 
 初回リリース。DDLC 4 キャラの作風で詩を生成し、画像（Stable Diffusion / ComfyUI）と
