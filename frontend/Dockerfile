@@ -10,12 +10,15 @@ FROM node:26-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Optional: pin the API URL the browser bundle calls. Left empty by default so
-# the frontend derives it from the host the page is loaded from (see api-base.ts).
+# Where this server proxies /api/* to: the compose service name, so no API port
+# has to be published. Baked in at build time because Next resolves rewrites
+# during `next build` (they land in .next/routes-manifest.json).
+ARG API_ORIGIN="http://api:8000"
+ENV API_ORIGIN=$API_ORIGIN
+# Optional: point the browser bundle at an API on another origin instead, bypassing
+# the proxy above. Left empty by default so it calls this server's own /api/*.
 ARG NEXT_PUBLIC_API_BASE=""
-ARG NEXT_PUBLIC_API_PORT="8000"
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
-ENV NEXT_PUBLIC_API_PORT=$NEXT_PUBLIC_API_PORT
 RUN npm run build
 
 FROM node:26-slim AS runner
@@ -26,6 +29,11 @@ ENV PORT=3000
 # Docker-provided $HOSTNAME (the container id), so the compose healthcheck's
 # http://127.0.0.1:3000 is refused and the container is marked unhealthy (#127).
 ENV HOSTNAME=0.0.0.0
+# This stage only ever runs `node server.js` (and `node -e` for the healthcheck),
+# so drop the base image's bundled npm: it is unused weight here, and its
+# vendored dependencies are what the image scan flags (currently npm's own tar,
+# CVE-2026-59873). The build stages above keep their npm.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # Copy the standalone server, owned by the built-in non-root `node` user. The
 # server only reads these files and serves on $PORT (no runtime writes), so
 # dropping root is safe (defence in depth, #55).

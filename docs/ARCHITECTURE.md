@@ -57,8 +57,10 @@
 
 ## ネットワーク / ポート
 
-- `frontend` :3000（公開）
-- `api` :8000（frontend からアクセス、必要に応じて公開）
+- `frontend` :3000（公開）。ブラウザが触る唯一の入口で、`/api/*` を compose のサービス名
+  `api` へリバースプロキシする（Next の `rewrites`。同一オリジンなので CORS 不要）
+- `api` :8000（frontend / cloudflared から `edge` ネットワーク越しにアクセス）。ホスト側は
+  既定でループバックのみ bind（`API_BIND`）。直接叩かせたい場合のみ `0.0.0.0` にする
 - `comfyui` :8188 / `db` :5432 / `redis` :6379 は内部ネットワークのみ
 
 ## データモデル
@@ -157,10 +159,15 @@ stateDiagram-v2
   ファイルの鮮度で死活を判定する。
 - **生成の同時実行上限**: 同期 Claude 呼び出しが threadpool を枯渇させないよう
   `GENERATE_MAX_CONCURRENCY` で上限化し、超過は即 503（#59）。
-- **レート制限**: `RATE_LIMIT_PER_MIN` で `POST /api/generate` を IP 毎に制限（#20, #57）。
+- **レート制限**: `POST /api/generate` を制限（#20, #57）。既定は接続元 IP 毎（`RATE_LIMIT_PER_MIN`）
+  だが、`RATE_LIMIT_CLIENTS` に挙げた呼び出し元は **名前**（compose のサービス名 / ホスト名 /
+  CIDR）単位のバケツになる。frontend プロキシ経由の通信は全て `frontend` から届くため、
+  実運用ではこちらが主。X-Forwarded-For は**信用しない**（Next の rewrite プロキシは
+  クライアントが付けた値をそのまま通すため詐称可能）。
 - **外部呼び出し**: Claude / ComfyUI はタイムアウト＋指数バックオフでリトライ。
 - **可観測性**: 各リクエスト/ジョブに相関 ID（`X-Request-ID`）を付与し、`LOG_FORMAT=json` で
   構造化ログに切替可能。`SENTRY_DSN` 設定時のみ Sentry を有効化する（#128）。
 - **ネットワーク分離 / 認証**: `edge`（frontend + api）と `internal`（db/redis/comfyui/worker）を
-  分離し、侵害された frontend が backend に直接到達できないようにする。認証（`API_AUTH_TOKEN`）と
-  CORS の設計は README「認証（API_AUTH_TOKEN）とブラウザ UI」節を参照。
+  分離し、侵害された frontend が backend に直接到達できないようにする。api のホスト側ポートは
+  既定でループバック bind（`API_BIND`）＝ ブラウザからの経路は frontend プロキシのみ。認証
+  （`API_AUTH_TOKEN`）と CORS の設計は README「認証（API_AUTH_TOKEN）とブラウザ UI」節を参照。

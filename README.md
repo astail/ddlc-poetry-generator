@@ -40,8 +40,12 @@ docker compose up -d --build
 
 # 4) ブラウザで開く
 #    フロント:   http://localhost:3000
-#    API ドキュメント: http://localhost:8000/docs
+#    API ドキュメント: http://localhost:8000/docs（api はホスト内からのみ。下記 API_BIND 参照）
 ```
+
+> ブラウザは frontend の `/api/*` を叩き、frontend が compose のサービス名 `api` へ
+> プロキシします（同一オリジン）。LAN の他端末からは `http://<ホストのIP>:3000` だけで
+> 使えます（API のポート公開も CORS 設定も不要）。
 
 > マイグレーションを手動で流したい場合（再実行や確認用）:
 > `docker compose run --rm migrate`（または `docker compose run --rm api alembic upgrade head`）。
@@ -55,10 +59,13 @@ docker compose up -d --build
 ## アーキテクチャ（概要）
 
 ```
-frontend (Next.js) ─▶ api (FastAPI, Claude) ─▶ redis ─▶ worker-gpu ─▶ comfyui (SD, GPU)
-                              │                       └▶ worker-tts (en=Piper/XTTS, ja=VOICEVOX)
-                              └▶ postgres            (生成物は /data ボリューム)
+ブラウザ ─▶ frontend (Next.js, :3000) ─/api/*─▶ api (FastAPI, Claude) ─▶ redis ─▶ worker-gpu ─▶ comfyui (SD, GPU)
+                                                        │                     └▶ worker-tts (en=Piper/XTTS, ja=VOICEVOX)
+                                                        └▶ postgres          (生成物は /data ボリューム)
 ```
+
+ブラウザが触るのは frontend だけで、`/api/*` は frontend がサービス名 `api` へプロキシします
+（同一オリジン → CORS 不要、api のポートは公開不要）。
 
 GTX 1060 は 6GB のため、画像生成のみ GPU を占有し、既定の読み上げは CPU(Piper) に分離しています。
 詳細は [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) / [docs/SPEC.md](./docs/SPEC.md) / [docs/API.md](./docs/API.md)（API リファレンス）/ [docs/DESIGN.md](./docs/DESIGN.md)（UI・デザイン）を参照。
@@ -85,17 +92,20 @@ GTX 1060 は 6GB のため、画像生成のみ GPU を占有し、既定の読�
 | `SD_WIDTH` / `SD_HEIGHT` / `SD_STEPS` / `SD_CFG` | 512 / 512 / 25 / 7 | 画像生成設定（SDXL は 1024/1024/30 が既定） |
 | `TTS_BACKEND` | `piper` | **英語**の読み上げバックエンド。`piper`（CPU・英語のみ）/ `xtts`（GPU・多言語）。日本語は `VOICEVOX_URL` 側で対応 |
 | `VOICEVOX_URL` | `http://voicevox:50021` | **日本語(`lang=ja`)** の読み上げに使う VOICEVOX エンジンの URL。`voicevox` サービスは既定スタックに含まれ `docker compose up` で自動起動するため、日本語音声は **既定で有効**。無効化するにはこの値を空にする（その間はフロントが `GET /api/tts/capabilities` を見て「音声を生成（日本語）」を無効化する / #89） |
-| `RATE_LIMIT_PER_MIN` | `20` | `POST /api/generate` のIP毎レート上限。`REDIS_URL` 設定時は Redis 共有で全プロセス/レプリカ横断（#135）、未設定時はプロセス内。Redis 不達時は fail-open |
+| `RATE_LIMIT_PER_MIN` | `20` | `POST /api/generate` の既定レート上限（`RATE_LIMIT_CLIENTS` に載らない呼び出し元は接続元 IP 毎）。`REDIS_URL` 設定時は Redis 共有で全プロセス/レプリカ横断（#135）、未設定時はプロセス内。Redis 不達時は fail-open |
+| `RATE_LIMIT_CLIENTS` | `frontend=120` | レート制限を **名前** 単位で行う。`名前[=毎分上限]` のカンマ区切り（`frontend=120,cloudflared,10.8.0.0/24=5`）。名前は docker compose のサービス名 / ホスト名で、実行時に DNS 解決（30秒キャッシュ）するのでコンテナ IP が変わっても追従。IP / CIDR も書ける。空 = 全て IP 単位（従来動作） |
 | `API_AUTH_TOKEN` | —（空=無認証） | 設定すると `POST /api/generate`・`DELETE /api/poems/{id}`・`GET /api/stats` が `X-API-Key: <token>` を要求（定数時間比較）。**同梱ブラウザ UI とは併用不可** — 下記「[認証とブラウザ UI](#認証api_auth_tokenとブラウザ-ui)」参照 |
 | `JOB_MAX_RETRIES` | `1` | ジョブ失敗時の再投入回数（超過でデッドレター） |
 | `DATA_DIR` | `/data` | 生成物の保存先（ボリューム） |
-| `CORS_ALLOW_ORIGINS` | （空=private-LAN 許可） | ブラウザ許可オリジン。カンマ区切りで明示、`*` で全許可。空なら loopback + RFC1918 のみ |
+| `CORS_ALLOW_ORIGINS` | （空=LAN 許可） | API を**直接**叩くブラウザ向けの許可オリジン（frontend 経由は同一オリジンなので無関係）。カンマ区切りで明示、`*` で全許可。空なら loopback / RFC1918 に加えて「名前」のオリジン（`http://frontend:3000` のようなドット無しホスト名、`.local` / `.internal` / `.lan` / `.home.arpa`）を許可 |
 | `GENERATE_MAX_CONCURRENCY` | `4` | 同時に処理する生成の上限。超過は 503（#59） |
 | `APP_ENV` | （compose は `production`） | `production` かつ `DATABASE_URL` 未設定なら起動時 fail-fast（非 compose 本番向け / #125） |
 | `LOG_FORMAT` / `LOG_LEVEL` | `plain` / `INFO` | `LOG_FORMAT=json` で構造化ログ（相関 ID 付き / #128） |
 | `SENTRY_DSN` / `SENTRY_TRACES_SAMPLE_RATE` | —（無効） / `0` | 設定時のみ Sentry 有効（`sentry-sdk` 要）。未設定はゼロオーバーヘッド（#128） |
-| `API_PORT` / `FRONTEND_PORT` | `8000` / `3000` | api / frontend の公開ポート |
-| `NEXT_PUBLIC_API_BASE` | （自動導出） | ブラウザが叩く API URL を固定。空ならページ読込ホストから導出 |
+| `API_PORT` / `FRONTEND_PORT` | `8000` / `3000` | api / frontend のホスト側ポート |
+| `API_BIND` | `127.0.0.1` | api ポートの bind アドレス。既定はループバックのみ（ブラウザは frontend の `/api/*` 経由で届くため公開不要。ホストからの `/docs`・curl は可）。LAN や外部のクライアントに直接叩かせるときだけ `0.0.0.0` |
+| `API_ORIGIN` | `http://api:8000` | frontend が `/api/*` を転送する先（compose のサービス名）。**ビルド時に焼き込まれる**ので変更時は `up --build` |
+| `NEXT_PUBLIC_API_BASE` | （空=同一オリジン） | プロキシを迂回してブラウザから直接叩く API URL。設定時は `CORS_ALLOW_ORIGINS` 側の許可も必要。**ビルド時に焼き込まれる** |
 
 ## 認証（API_AUTH_TOKEN）とブラウザ UI
 
@@ -110,11 +120,13 @@ GTX 1060 は 6GB のため、画像生成のみ GPU を占有し、既定の読�
 
 ### 使い分け
 
-- **自ホスト（既定・推奨）**: `API_AUTH_TOKEN` は未設定のまま、`api` をインターネットに公開せず LAN 内に留める。
-  外部サイトからのブラウザ経由アクセスは CORS（既定で loopback + private-LAN のみ許可）で防ぐ。生成の乱用や
-  削除は レート制限（`RATE_LIMIT_PER_MIN`）と同時実行上限（`GENERATE_MAX_CONCURRENCY`）で抑制する。
-- **ヘッドレス / 外部クライアント**: UI を使わず API を直接叩く用途に限り `API_AUTH_TOKEN` を設定し、
-  クライアント側が `X-API-Key` を付与する。
+- **自ホスト（既定・推奨）**: `API_AUTH_TOKEN` は未設定のまま、`api` のポートは既定どおり
+  ループバック bind（`API_BIND=127.0.0.1`）に留める。ブラウザは frontend の `/api/*` 経由で届くので
+  これで足り、外部サイトからの直接アクセス経路自体が無い。生成の乱用や削除は レート制限
+  （`RATE_LIMIT_CLIENTS` / `RATE_LIMIT_PER_MIN`）と同時実行上限（`GENERATE_MAX_CONCURRENCY`）で抑制する。
+- **ヘッドレス / 外部クライアント**: UI を使わず API を直接叩く用途に限り `API_BIND=0.0.0.0` で公開し、
+  `API_AUTH_TOKEN` を設定してクライアント側が `X-API-Key` を付与する。ブラウザから直接叩くなら
+  `CORS_ALLOW_ORIGINS`（空なら LAN のホスト名・private IP は自動許可）も確認する。
 - **UI を公開しつつ保護したい**: フロントの前段にリバースプロキシ（BFF）を置き、そこで `X-API-Key` を注入する。
   鍵はサーバ側にのみ置き、ブラウザには一切出さない。
 
@@ -172,8 +184,14 @@ CI（GitHub Actions）では `docker compose config` 検証・`ruff`/`pytest`・
   - チェックポイント未配置: `./comfyui/download_models.sh` を実行し、`SD_CHECKPOINT` を一致させる
 - **API が 500 / テーブルが無い**: 通常は `migrate` サービスが起動時に自動適用しますが、失敗した場合は `docker compose logs migrate` を確認し、`docker compose run --rm migrate`（= `alembic upgrade head`）を再実行
 - **音声が `failed`**: 初回はボイス DL に時間がかかる。ネットワークと `/data/voices` を確認
-- **`POST /api/generate` が 429**: レート制限。`RATE_LIMIT_PER_MIN` を調整
-- **フロントから API に繋がらない**: `NEXT_PUBLIC_API_BASE`（既定 `http://localhost:8000`）を確認
+- **`POST /api/generate` が 429**: レート制限。UI 経由の通信は `RATE_LIMIT_CLIENTS` の `frontend`
+  バケツ（既定 120/分）を全ユーザーで共有するので、まずそこを上げる。名前に載らない呼び出し元は
+  `RATE_LIMIT_PER_MIN`（IP 毎）
+- **フロントから API に繋がらない**: 通常は frontend の `/api/*` プロキシ経由。
+  `docker compose logs frontend` に upstream エラーが出ていないか、`API_ORIGIN`（既定
+  `http://api:8000`、**ビルド時に焼き込み**なので変更後は `up --build`）を確認。
+  `NEXT_PUBLIC_API_BASE` を設定してプロキシを迂回している場合は、そのオリジンが
+  `CORS_ALLOW_ORIGINS` で許可されているかも確認
 
 ## 貢献 / セキュリティ
 

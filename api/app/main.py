@@ -25,6 +25,7 @@ from .deps import (
     get_data_dir,
     get_generation_semaphore,
     get_generator,
+    get_named_client_limiter,
     get_queue,
     get_rate_limiter,
     get_session,
@@ -35,7 +36,7 @@ from .image_models import resolve as resolve_image_model
 from .models import Poem
 from .observability import configure_logging, init_error_tracking, request_id_var
 from .queue import JobQueue
-from .ratelimit import RateLimiterLike
+from .ratelimit import NamedClientLimiter, RateLimiterLike
 from .repository import delete_poem, get_poem, get_poems, get_stats
 from .service import GenerationService
 from .voices import supported_audio_langs
@@ -46,23 +47,29 @@ app = FastAPI(title="DDLC Poetry Generator API")
 configure_logging()
 init_error_tracking()
 
-# Browser calls come from the frontend on a different origin (port 3000 vs the
-# API's 8000, and often a LAN IP rather than localhost), so the app must answer
-# CORS preflights or fetch() is blocked. Operators can pin exact origins via
-# CORS_ALLOW_ORIGINS (comma-separated; "*" opts into wildcard). When unset, we
-# allow loopback plus private-LAN (RFC1918) origins via regex — enough for
-# self-hosting on a LAN, but not the public internet, so a malicious external
-# site can't read the API from a victim's browser. Credentials stay off (the
-# optional auth is the X-API-Key header, not cookies).
+# The bundled UI now reaches the API same-origin (the frontend proxies /api/* to
+# this service), so CORS only matters for callers that hit the API directly on
+# its own port. Operators can pin exact origins via CORS_ALLOW_ORIGINS
+# (comma-separated; "*" opts into wildcard). When unset we allow, via regex:
+# loopback, private-LAN (RFC1918) literals, and *names* — a single-label host
+# (`http://frontend:3000`, `http://nas:3000`, i.e. a compose service or LAN
+# hostname) or one under a private-use suffix (.local/.internal/.lan/.home.arpa).
+# A name with no dot cannot be registered on the public internet and the private
+# suffixes are unroutable, so this stays "reachable from my LAN, not from a
+# malicious external site" while no longer forcing operators to spell out IPs.
+# Credentials stay off (the optional auth is the X-API-Key header, not cookies).
 _cors_origins = [
     o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()
 ]
+_PRIVATE_SUFFIXES = r"local|internal|lan|home\.arpa|localdomain"
 _PRIVATE_ORIGIN_RE = (
     r"^https?://("
-    r"localhost|127\.0\.0\.1|\[::1\]|"
+    r"127\.0\.0\.1|\[::1\]|"
     r"10(\.\d{1,3}){3}|"
     r"192\.168(\.\d{1,3}){2}|"
-    r"172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}"
+    r"172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?|"  # single-label name (incl. localhost)
+    rf"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:{_PRIVATE_SUFFIXES})"
     r")(:\d+)?$"
 )
 app.add_middleware(
@@ -103,13 +110,22 @@ async def _request_id(request: Request, call_next):
 def enforce_rate_limit(
     request: Request,
     limiter: RateLimiterLike = Depends(get_rate_limiter),
+    named: NamedClientLimiter = Depends(get_named_client_limiter),
 ) -> None:
-    # Identify the client by source IP. Behind a reverse proxy / Docker bridge
-    # this is the gateway IP unless uvicorn runs with --proxy-headers (+ a
-    # trusted --forwarded-allow-ips); we intentionally do NOT trust a raw
-    # X-Forwarded-For header here, since that is client-spoofable. The limiter
+    # Identify the caller by *name* when RATE_LIMIT_CLIENTS covers its address
+    # (docker compose service name / hostname / CIDR), else by source IP. Names
+    # are what an operator can actually pin down: container IPs are ephemeral,
+    # and with the browser UI proxied through the frontend every request arrives
+    # from that one container anyway. We intentionally do NOT trust a raw
+    # X-Forwarded-For header here — Next.js' rewrite proxy passes a
+    # client-supplied one straight through, so it is spoofable. The limiter
     # itself bounds memory so unknown/abusive IPs can't grow state unbounded.
-    key = request.client.host if request.client else "anon"
+    peer = request.client.host if request.client else None
+    match = named.for_peer(peer)
+    if match is not None:
+        key, limiter = match
+    else:
+        key = peer or "anon"
     allowed, retry_after = limiter.check(key)
     if not allowed:
         raise HTTPException(
