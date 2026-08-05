@@ -93,7 +93,7 @@ pydantic==2.13.4
     #   ddlc-poem-api (pyproject.toml)
     #   anthropic
     #   fastapi
-pydantic-core==2.47.0
+pydantic-core==2.46.4
     # via pydantic
 pygments==2.20.0
     # via pytest
