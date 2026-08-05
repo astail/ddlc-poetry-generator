@@ -14,6 +14,18 @@ const securityHeaders = [
   },
 ];
 
+// The browser calls the API through this server: `/api/*` is proxied to the api
+// service, so the page and its API share one origin (no CORS, and no API port
+// that has to be published on the host). The destination is a *name* — the
+// docker compose service (`http://api:8000`) — so it survives container
+// restarts and IP churn.
+//
+// NOTE: `next build` evaluates rewrites() and writes the result into
+// .next/routes-manifest.json, so API_ORIGIN is read at BUILD time (like
+// NEXT_PUBLIC_*), not when the standalone server boots. compose passes it as a
+// build arg; changing it needs `docker compose up --build`.
+const apiOrigin = process.env.API_ORIGIN || "http://localhost:8000";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
@@ -21,6 +33,19 @@ const nextConfig = {
   // a separate step (`npm run lint` -> `eslint .`, run in CI).
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
+  },
+  experimental: {
+    // The rewrite proxy cuts the upstream connection after 30s by default, which
+    // POST /api/generate blows through: it waits synchronously for Claude
+    // (POEM_TIMEOUT=60s per call, plus SDK retries and up to POEM_PARSE_RETRIES
+    // re-asks when the model returns unparseable JSON). The API finishes and
+    // stores the poem, but the browser gets a 500 ("socket hang up") — so raise
+    // the cap well above a realistic generation while still bounding a wedged
+    // socket.
+    proxyTimeout: 300_000,
   },
 };
 

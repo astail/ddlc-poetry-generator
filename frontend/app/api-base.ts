@@ -1,14 +1,12 @@
 // Resolve the API base URL for browser-side fetches.
 //
-// A baked-in NEXT_PUBLIC_API_BASE (set as a build arg) always wins. Otherwise
-// we derive the base from the host the page was actually loaded from, so that
-// LAN access (e.g. http://192.168.10.200:3000) reaches the API on that same
-// host instead of the visitor's own "localhost". Falls back to localhost during
-// server-side rendering, where `window` is undefined.
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:${
-        process.env.NEXT_PUBLIC_API_PORT ?? "8000"
-      }`
-    : "http://localhost:8000");
+// Empty by default: `/api/*` is proxied to the api service by this server (see
+// the rewrite in next.config.mjs), so requests stay same-origin and work
+// unchanged over localhost, a LAN IP, a hostname or a public tunnel domain —
+// whatever the page itself was loaded from. That also means the api container
+// needs no published port and no CORS entry.
+//
+// Set NEXT_PUBLIC_API_BASE (a build arg — NEXT_PUBLIC_* is baked into the
+// bundle) only to bypass the proxy and call an API on another origin; that
+// origin then has to allow it via CORS_ALLOW_ORIGINS.
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
