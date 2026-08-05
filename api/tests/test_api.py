@@ -7,7 +7,13 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.characters import Character
-from app.deps import get_generator, get_queue, get_rate_limiter, get_session
+from app.deps import (
+    get_generator,
+    get_named_client_limiter,
+    get_queue,
+    get_rate_limiter,
+    get_session,
+)
 from app.main import app
 from app.models import Base, Image, Job, Poem
 from app.queue import InMemoryJobQueue
@@ -52,8 +58,10 @@ def client():
     # get_rate_limiter is @lru_cache'd, so its RateLimiter is shared for the whole
     # process — without this reset the per-IP hit counter accumulates across every
     # test and eventually trips the 20/min limit (order-dependent 429s). Clearing
-    # the cache gives each test a fresh limiter.
+    # the cache gives each test a fresh limiter. Same for the named buckets,
+    # which additionally cache RATE_LIMIT_CLIENTS as it was at first use.
     get_rate_limiter.cache_clear()
+    get_named_client_limiter.cache_clear()
 
     c = TestClient(app)
     c.session_local = SessionLocal
@@ -178,6 +186,36 @@ def test_generate_returns_503_when_at_concurrency_cap(client):
     # Freeing the slot lets the next request through again.
     sem.release()
     assert client.post("/api/generate", json={"character": "yuri"}).status_code == 200
+
+
+def test_rate_limit_keys_on_the_configured_client_name(client):
+    """A caller listed in RATE_LIMIT_CLIENTS is limited as a *name*.
+
+    That is the case that matters in compose: the browser UI reaches the API
+    through the frontend proxy, so every request arrives from that container's
+    (ephemeral) bridge IP and `frontend` is the only stable handle for it.
+    """
+    from app.clients import ClientRegistry, parse_client_rules
+    from app.main import app
+    from app.ratelimit import NamedClientLimiter, RateLimiter
+
+    registry = ClientRegistry(
+        parse_client_rules("frontend=1"),
+        resolver=lambda name: frozenset({"172.18.0.5"}),
+    )
+    named = NamedClientLimiter(registry, lambda m: RateLimiter(m, 60), 20)
+    app.dependency_overrides[get_named_client_limiter] = lambda: named
+
+    body = {"character": "yuri"}
+    proxy = TestClient(app, client=("172.18.0.5", 51000))
+    assert proxy.post("/api/generate", json=body).status_code == 200
+    r = proxy.post("/api/generate", json=body)  # same bucket, over the name's limit
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) > 0
+
+    # A caller the rules don't cover still gets its own per-IP bucket.
+    other = TestClient(app, client=("172.18.0.9", 51000))
+    assert other.post("/api/generate", json=body).status_code == 200
 
 
 def test_list_models_endpoint(client):
