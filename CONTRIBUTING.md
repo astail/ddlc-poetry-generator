@@ -38,7 +38,7 @@ CI（GitHub Actions `validate.yml`）は compose 検証・ruff/pytest+coverage�
   `.env.example` のプレースホルダは `.gitleaks.toml` で許可。
 - **コンテナ**: Trivy が api/frontend イメージを走査し、**修正可能な CRITICAL** で fail
   （`ignore-unfixed`。base イメージの未修正 CVE ではブロックしない）。
-- GitHub Actions は **commit SHA でピン**（末尾コメントにバージョン）。Dependabot が SHA を更新。
+- GitHub Actions は **commit SHA でピン**（末尾コメントにバージョン）。SHA は手動で更新。
 
 ## 依存の固定（再現性）
 

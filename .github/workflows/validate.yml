@@ -6,8 +6,8 @@ on:
   pull_request:
 
 # Third-party actions are pinned to a commit SHA (supply-chain hardening, #117);
-# the trailing comment is the human-readable version. Dependabot (github-actions)
-# keeps the SHA + comment updated.
+# the trailing comment is the human-readable version. Automated dependency updates
+# are disabled, so the SHA + comment are bumped manually.
 jobs:
   compose:
     runs-on: ubuntu-latest
@@ -97,8 +97,8 @@ jobs:
 
   audit:
     # Advisory dependency scan: surfaces known vulnerabilities in the logs but
-    # does not fail the build (transitive advisories are often unactionable;
-    # Dependabot from #63 handles the actual version bumps).
+    # does not fail the build (transitive advisories are often unactionable).
+    # Version bumps are applied manually.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
